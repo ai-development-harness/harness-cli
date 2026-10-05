@@ -9,6 +9,7 @@ import type { MigrationPlan, MigrationPlanOperation } from './plan-types.js';
 import {
   createMigrationCheckpoint,
   loadMigrationCheckpoint,
+  migrationCheckpointExists,
   removeMigrationCheckpoint,
   saveMigrationJournal,
   savePartialMigrationReport,
@@ -172,7 +173,14 @@ async function assertProjectIdentity(plan: MigrationPlan): Promise<string> {
 }
 
 function assertReadyPlan(plan: MigrationPlan): void {
-  if (plan.schemaVersion !== 1 || !plan.migrationId || plan.status !== 'ready' || plan.blockers.length > 0) {
+  if (
+    plan.schemaVersion !== 1 ||
+    !plan.migrationId ||
+    plan.status !== 'ready' ||
+    plan.blockers.length > 0 ||
+    plan.source.projectRoot === null ||
+    !plan.preconditions.migrationCheckpointAbsent
+  ) {
     throw new MigrationExecutionError('PLAN_BLOCKED', 'Migration plan is not executable.', {
       migrationId: plan.migrationId,
       status: plan.status,
@@ -203,7 +211,13 @@ function preserveHandler(): MigrationOperationHandler {
       return { preservedPath: context.operation.path };
     },
     async verify(context, postcondition): Promise<boolean> {
-      return postcondition.preservedPath === context.operation.path;
+      if (postcondition.preservedPath !== context.operation.path) return false;
+      try {
+        await assertOperationPrecondition(context.projectRoot, context.operation);
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }
@@ -486,6 +500,13 @@ export async function executeMigration(
   const projectRoot = await assertProjectIdentity(plan);
   assertHandlersAvailable(plan, dependencies);
   await assertTargetRelease(plan, dependencies);
+  if (await migrationCheckpointExists(projectRoot, plan.migrationId)) {
+    throw new MigrationExecutionError(
+      'MIGRATION_CHECKPOINT_EXISTS',
+      `Migration checkpoint already exists: ${plan.migrationId}. Use resume instead.`,
+      { migrationId: plan.migrationId },
+    );
+  }
   await assertInitialPreconditions(plan, projectRoot);
   const checkpoint = await createMigrationCheckpoint(plan, projectRoot, dependencies.now ?? (() => new Date()));
   return runCheckpoint(checkpoint, dependencies);
