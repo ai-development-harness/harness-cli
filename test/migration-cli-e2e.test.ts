@@ -291,8 +291,8 @@ describe('migration CLI end-to-end', () => {
   });
 
   it('reports a corrupted checkpoint and refuses automatic resume', async () => {
-    const { repo, env } = await fixture();
-    const migrationId = await createInterruptedMigration(repo);
+    const { repo, env, releaseStore } = await fixture();
+    const migrationId = await createInterruptedMigration(repo, releaseStore);
     const checkpoint = await inspectMigrationCheckpoint(repo, migrationId);
     await writeFile(checkpoint.paths.journal, '{broken json\n', 'utf8');
 
