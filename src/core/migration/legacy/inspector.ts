@@ -4,7 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import YAML from 'yaml';
 import { readConfig } from '../../config.js';
-import { harnessStatePath } from '../../git.js';
+import { harnessStatePath, resolveHarnessStatePath } from '../../git.js';
 import { resolvePortablePathWithinBoundary } from '../../path-boundary.js';
 import type {
   LegacyBaselineResolution,
@@ -504,9 +504,9 @@ function relevantUntrackedPaths(
   });
 }
 
-async function hasMigrationCheckpoint(cloneLocalHarnessPath: string): Promise<boolean> {
-  const migrationsPath = await resolvePortablePathWithinBoundary(
-    cloneLocalHarnessPath,
+async function hasMigrationCheckpoint(projectRoot: string): Promise<boolean> {
+  const migrationsPath = await resolveHarnessStatePath(
+    projectRoot,
     'migrations',
     'migration checkpoint inventory',
   );
@@ -548,7 +548,7 @@ export async function inspectProject(
     inspectGitInventory(root),
     harnessStatePath(root),
   ]);
-  const migrationInProgress = await hasMigrationCheckpoint(cloneLocalHarnessPath);
+  const migrationInProgress = await hasMigrationCheckpoint(root);
   const [
     legacyManifestPath,
     legacyLockPath,
