@@ -133,8 +133,15 @@ export async function readConfig(projectRoot: string): Promise<HarnessConfig> {
   return harnessConfigSchema.parse(YAML.parse(raw));
 }
 
-export async function writeConfig(projectRoot: string, config: HarnessConfig): Promise<void> {
+export async function writeConfig(
+  projectRoot: string,
+  config: HarnessConfig,
+  options: { exclusive?: boolean } = {},
+): Promise<void> {
   const target = configPath(projectRoot);
   await assertAbsolutePathWithinBoundary(projectRoot, target, 'harness.yaml');
-  await writeFile(target, YAML.stringify(config), 'utf8');
+  await writeFile(target, YAML.stringify(config), {
+    encoding: 'utf8',
+    flag: options.exclusive ? 'wx' : 'w',
+  });
 }
