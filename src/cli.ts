@@ -37,8 +37,11 @@ program
 
 program
   .command('validate')
-  .description('Validate harness.yaml')
-  .action(() => validateCommand(process.cwd()));
+  .description('Validate the pinned Harness release, harness.yaml and project artifact contracts')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    validateCommand(process.cwd(), { json: options.json ?? false }),
+  );
 
 program
   .command('status')
