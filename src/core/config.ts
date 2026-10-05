@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
+import { assertAbsolutePathWithinBoundary } from './path-boundary.js';
 import { z } from 'zod';
 
 const languageSchema = z.string().min(2);
@@ -126,10 +127,14 @@ export function configPath(projectRoot: string): string {
 }
 
 export async function readConfig(projectRoot: string): Promise<HarnessConfig> {
-  const raw = await readFile(configPath(projectRoot), 'utf8');
+  const target = configPath(projectRoot);
+  await assertAbsolutePathWithinBoundary(projectRoot, target, 'harness.yaml');
+  const raw = await readFile(target, 'utf8');
   return harnessConfigSchema.parse(YAML.parse(raw));
 }
 
 export async function writeConfig(projectRoot: string, config: HarnessConfig): Promise<void> {
-  await writeFile(configPath(projectRoot), YAML.stringify(config), 'utf8');
+  const target = configPath(projectRoot);
+  await assertAbsolutePathWithinBoundary(projectRoot, target, 'harness.yaml');
+  await writeFile(target, YAML.stringify(config), 'utf8');
 }
