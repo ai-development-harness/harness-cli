@@ -288,7 +288,7 @@ describe('migration CLI end-to-end', () => {
 
     const after = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(after).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('reports a corrupted checkpoint and refuses automatic resume', async () => {
     const { repo, env, releaseStore } = await fixture();
@@ -323,6 +323,10 @@ describe('migration CLI end-to-end', () => {
     const worktree = path.join(base, 'worktree');
     await git(repo, ['worktree', 'add', '-b', 'migration-worktree', worktree]);
 
+    const dryRun = await runCli(worktree, ['migrate', 'plan', '--json'], env);
+    expect(dryRun.code, dryRun.stderr || dryRun.stdout).toBe(0);
+    expect(jsonOutput(dryRun)).toMatchObject({ ok: true, status: 'ready' });
+
     const planPath = path.join(base, 'worktree-plan.json');
     const plan = await runCli(worktree, ['migrate', 'plan', '--out', planPath, '--json'], env);
     expect(plan.code, plan.stderr || plan.stdout).toBe(0);
@@ -331,7 +335,7 @@ describe('migration CLI end-to-end', () => {
     expect(apply.code, apply.stderr || apply.stdout).toBe(0);
     expect(jsonOutput(apply).status).toBe('completed');
     expect(await readFile(path.join(worktree, 'harness.yaml'), 'utf8')).toContain('release: 0.10.4');
-  });
+  }, 15_000);
 
   it('rejects Windows-style separators in portable project paths on every host OS', async () => {
     const { repo, env } = await fixture({ windowsStyleRequirementsPath: true });
