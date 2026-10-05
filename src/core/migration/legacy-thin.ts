@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
-import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
-import { harnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
+import { assertConfigPathBoundaries, DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
+import { resolveHarnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
+import { isPathBoundaryError, resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
 import { atomicWriteText, exclusiveWriteText } from './checkpoint.js';
@@ -52,20 +53,8 @@ function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function safeProjectPath(projectRoot: string, portablePath: string): string {
-  if (!portablePath || portablePath.startsWith('/') || portablePath.includes('\\')) {
-    throw new Error(`Unsafe project path: ${portablePath}`);
-  }
-  const segments = portablePath.split('/');
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
-    throw new Error(`Unsafe project path: ${portablePath}`);
-  }
-  const resolved = path.resolve(projectRoot, ...segments);
-  const relative = path.relative(projectRoot, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error(`Path escapes project root: ${portablePath}`);
-  }
-  return resolved;
+async function safeProjectPath(projectRoot: string, portablePath: string): Promise<string> {
+  return resolvePortablePathWithinBoundary(projectRoot, portablePath, 'legacy migration project path');
 }
 
 async function exists(target: string): Promise<boolean> {
@@ -84,7 +73,7 @@ async function assertProjectTargetAbsent(
   targetPath: string,
   operationId: string,
 ): Promise<void> {
-  const target = safeProjectPath(projectRoot, targetPath);
+  const target = await safeProjectPath(projectRoot, targetPath);
   if (await exists(target)) {
     throw new MigrationExecutionError(
       'PLAN_STALE',
@@ -98,8 +87,11 @@ async function assertLocalStateTargetAbsent(
   projectRoot: string,
   operationId: string,
 ): Promise<void> {
-  const stateRoot = await harnessStatePath(projectRoot);
-  const target = path.join(stateRoot, 'execution', 'execution-status.json');
+  const target = await resolveHarnessStatePath(
+    projectRoot,
+    'execution/execution-status.json',
+    'clone-local execution state',
+  );
   if (await exists(target)) {
     throw new MigrationExecutionError(
       'PLAN_STALE',
@@ -203,16 +195,6 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function assertTargetConfigPaths(projectRoot: string, config: HarnessConfig): void {
-  const configuredPaths = [
-    ...Object.values(config.sources),
-    ...Object.values(config.protocol),
-  ];
-  for (const configuredPath of configuredPaths) {
-    safeProjectPath(projectRoot, configuredPath);
-  }
-}
-
 function buildThinConfig(source: string, plan: MigrationPlan): string {
   const parsed = YAML.parse(source) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
@@ -282,27 +264,32 @@ export async function prepareLegacyThinMigration(
   for (const operation of plan.operations) {
     try {
       if (operation.strategy === 'legacy-manifest-to-thin-config') {
-        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const content = buildThinConfig(source, plan);
-        assertTargetConfigPaths(
+        await assertConfigPathBoundaries(
           plan.source.projectRoot,
           harnessConfigSchema.parse(YAML.parse(content)),
         );
         operations.push(enrichPlanOperation(operation, content));
       } else if (operation.strategy === 'thin-agents-bootstrap-preserve-project-blocks') {
-        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         operations.push(enrichPlanOperation(operation, buildThinAgents(source)));
       } else if (operation.strategy === 'thin-claude-adapter-preserve-project-content') {
-        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         operations.push(enrichPlanOperation(operation, buildThinClaude(source)));
       } else {
         operations.push(operation);
       }
     } catch (error) {
       blockers.push({
-        code: operation.path === '.harness/manifest.yaml' ? 'PROJECT_SCHEMA_CONFLICT' : 'UNSAFE_SHARED_MERGE',
+        code: isPathBoundaryError(error)
+          ? error.code
+          : operation.path === '.harness/manifest.yaml'
+            ? 'PROJECT_SCHEMA_CONFLICT'
+            : 'UNSAFE_SHARED_MERGE',
         message: (error as Error).message,
         paths: [operation.path],
+        ...(isPathBoundaryError(error) ? { details: error.details } : {}),
       });
       operations.push(operation);
     }
@@ -310,14 +297,27 @@ export async function prepareLegacyThinMigration(
 
   const localStateOperation = operations.find((operation) => operation.kind === 'MIGRATE_LOCAL_STATE');
   if (localStateOperation) {
-    const stateRoot = await harnessStatePath(plan.source.projectRoot);
-    const target = path.join(stateRoot, 'execution', 'execution-status.json');
-    if (await exists(target)) {
+    try {
+      const target = await resolveHarnessStatePath(
+        plan.source.projectRoot,
+        'execution/execution-status.json',
+        'clone-local execution state',
+      );
+      if (await exists(target)) {
+        blockers.push({
+          code: 'LOCAL_STATE_TARGET_CONFLICT',
+          message: 'Clone-local execution state already exists; migration will not overwrite it.',
+          paths: [localStateOperation.path],
+          details: { target },
+        });
+      }
+    } catch (error) {
+      if (!isPathBoundaryError(error)) throw error;
       blockers.push({
-        code: 'LOCAL_STATE_TARGET_CONFLICT',
-        message: 'Clone-local execution state already exists; migration will not overwrite it.',
+        code: error.code,
+        message: error.message,
         paths: [localStateOperation.path],
-        details: { target },
+        details: error.details,
       });
     }
   }
@@ -334,9 +334,13 @@ export async function prepareLegacyThinMigration(
 }
 
 async function backupSource(context: MigrationOperationContext): Promise<string | null> {
-  const source = safeProjectPath(context.projectRoot, context.operation.path);
+  const source = await safeProjectPath(context.projectRoot, context.operation.path);
   if (!(await exists(source))) return null;
-  const backup = path.join(context.checkpoint.backups, ...context.operation.path.split('/'));
+  const backup = await resolveHarnessStatePath(
+    context.projectRoot,
+    `migrations/${context.plan.migrationId}/backups/${context.operation.path}`,
+    'migration backup path',
+  );
   await mkdir(path.dirname(backup), { recursive: true });
   await copyFile(source, backup);
   return backup;
@@ -366,14 +370,14 @@ function transformHandler(): MigrationOperationHandler {
         throw new Error('Prepared transform descriptor hash is inconsistent.');
       }
       await backupSource(context);
-      await exclusiveWriteText(safeProjectPath(context.projectRoot, context.operation.targetPath), content);
-      await rm(safeProjectPath(context.projectRoot, context.operation.path), { force: true });
+      await exclusiveWriteText(await safeProjectPath(context.projectRoot, context.operation.targetPath), content);
+      await rm(await safeProjectPath(context.projectRoot, context.operation.path), { force: true });
       return { sourceAbsent: true, targetPath: context.operation.targetPath, sha256: expected };
     },
     async verify(context, postcondition): Promise<boolean> {
       if (postcondition.sourceAbsent !== true || typeof postcondition.targetPath !== 'string' || typeof postcondition.sha256 !== 'string') return false;
-      return !(await exists(safeProjectPath(context.projectRoot, context.operation.path))) &&
-        (await fileSha256(safeProjectPath(context.projectRoot, postcondition.targetPath))) === postcondition.sha256;
+      return !(await exists(await safeProjectPath(context.projectRoot, context.operation.path))) &&
+        (await fileSha256(await safeProjectPath(context.projectRoot, postcondition.targetPath))) === postcondition.sha256;
     },
   };
 }
@@ -387,12 +391,12 @@ function replaceBootstrapHandler(): MigrationOperationHandler {
         throw new Error('Prepared bootstrap descriptor hash is inconsistent.');
       }
       await backupSource(context);
-      await atomicWriteText(safeProjectPath(context.projectRoot, context.operation.path), content);
+      await atomicWriteText(await safeProjectPath(context.projectRoot, context.operation.path), content);
       return { sha256: expected };
     },
     async verify(context, postcondition): Promise<boolean> {
       return typeof postcondition.sha256 === 'string' &&
-        (await fileSha256(safeProjectPath(context.projectRoot, context.operation.path))) === postcondition.sha256;
+        (await fileSha256(await safeProjectPath(context.projectRoot, context.operation.path))) === postcondition.sha256;
     },
   };
 }
@@ -401,11 +405,11 @@ function deleteCleanHandler(): MigrationOperationHandler {
   return {
     async apply(context): Promise<MigrationOperationPostcondition> {
       await backupSource(context);
-      await rm(safeProjectPath(context.projectRoot, context.operation.path), { force: true });
+      await rm(await safeProjectPath(context.projectRoot, context.operation.path), { force: true });
       return { absent: true };
     },
     async verify(context, postcondition): Promise<boolean> {
-      return postcondition.absent === true && !(await exists(safeProjectPath(context.projectRoot, context.operation.path)));
+      return postcondition.absent === true && !(await exists(await safeProjectPath(context.projectRoot, context.operation.path)));
     },
   };
 }
@@ -416,18 +420,21 @@ function migrateLocalStateHandler(): MigrationOperationHandler {
       await assertLocalStateTargetAbsent(context.projectRoot, context.operation.id);
     },
     async apply(context): Promise<MigrationOperationPostcondition> {
-      const source = safeProjectPath(context.projectRoot, context.operation.path);
+      const source = await safeProjectPath(context.projectRoot, context.operation.path);
       const bytes = await readFile(source);
       await backupSource(context);
-      const stateRoot = await harnessStatePath(context.projectRoot);
-      const target = path.join(stateRoot, 'execution', 'execution-status.json');
+      const target = await resolveHarnessStatePath(
+        context.projectRoot,
+        'execution/execution-status.json',
+        'clone-local execution state',
+      );
       await exclusiveWriteText(target, bytes.toString('utf8'));
       await rm(source, { force: true });
       return { sourceAbsent: true, target, sha256: sha256(bytes) };
     },
     async verify(context, postcondition): Promise<boolean> {
       return postcondition.sourceAbsent === true && typeof postcondition.target === 'string' && typeof postcondition.sha256 === 'string' &&
-        !(await exists(safeProjectPath(context.projectRoot, context.operation.path))) &&
+        !(await exists(await safeProjectPath(context.projectRoot, context.operation.path))) &&
         (await fileSha256(postcondition.target)) === postcondition.sha256;
     },
   };
@@ -450,7 +457,7 @@ async function verifyRequiredDirectories(projectRoot: string, config: HarnessCon
   ];
   const missing: string[] = [];
   for (const relativePath of required) {
-    if (!(await exists(safeProjectPath(projectRoot, relativePath)))) missing.push(relativePath);
+    if (!(await exists(await safeProjectPath(projectRoot, relativePath)))) missing.push(relativePath);
   }
   return missing;
 }
@@ -464,7 +471,7 @@ async function verifyPreservedPaths(plan: MigrationPlan): Promise<string[]> {
       const actual = await trackedWorkingTreeBlobSha1(plan.source.projectRoot, operation.path);
       if (actual !== operation.precondition.value) failures.push(operation.path);
     } else if (operation.precondition.kind === 'absent') {
-      if (await exists(safeProjectPath(plan.source.projectRoot, operation.path))) {
+      if (await exists(await safeProjectPath(plan.source.projectRoot, operation.path))) {
         failures.push(operation.path);
       }
     } else if (operation.precondition.kind === 'none') {
@@ -568,14 +575,14 @@ function reportHandler(store: ReleaseStore): MigrationOperationHandler {
       }
       const verification = await verifyLegacyThinResult(context.plan, store, context.checkpoint.root);
       const report = buildMigrationReport(context.plan, verification);
-      const target = safeProjectPath(context.projectRoot, context.operation.path);
+      const target = await safeProjectPath(context.projectRoot, context.operation.path);
       await mkdir(path.dirname(target), { recursive: true });
       await exclusiveWriteText(target, report);
       return { sha256: sha256(report), verification: 'PASS' };
     },
     async verify(context, postcondition): Promise<boolean> {
       return postcondition.verification === 'PASS' && typeof postcondition.sha256 === 'string' &&
-        (await fileSha256(safeProjectPath(context.projectRoot, context.operation.path))) === postcondition.sha256;
+        (await fileSha256(await safeProjectPath(context.projectRoot, context.operation.path))) === postcondition.sha256;
     },
   };
 }
@@ -639,7 +646,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
 
   const trackedPaths = new Set(await trackedProjectPaths(plan.source.projectRoot));
   const legacyStatePath = '.harness/local/execution/execution-status.json';
-  const legacyStateExists = await exists(safeProjectPath(plan.source.projectRoot, legacyStatePath));
+  const legacyStateExists = await exists(await safeProjectPath(plan.source.projectRoot, legacyStatePath));
   const expectedReportPath =
     `planning/audits/MIGRATION-${plan.migrationId.replace(/^migration-/, '')}.md`;
   let reportOperations = 0;
@@ -710,7 +717,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         }
         await assertPreparedTrackedSourceCurrent(plan, operation);
         await assertProjectTargetAbsent(plan.source.projectRoot, operation.targetPath, operation.id);
-        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const expectedContent = buildThinConfig(source, plan);
         const content = operation.targetDescriptor?.content;
         const digest = operation.targetDescriptor?.sha256;
@@ -735,7 +742,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
           throw new Error(`Unsupported prepared bootstrap operation: ${operation.id}.`);
         }
         await assertPreparedTrackedSourceCurrent(plan, operation);
-        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const expectedContent =
           operation.path === 'AGENTS.md'
             ? buildThinAgents(source)

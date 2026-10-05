@@ -2,6 +2,7 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { readConfig } from '../core/config.js';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { resolvePortablePathWithinBoundary } from '../core/path-boundary.js';
 import { globalHarnessPaths } from '../core/paths.js';
 import { isReleaseError } from '../core/releases/errors.js';
 import { resolvePinnedRelease } from '../core/releases/resolver.js';
@@ -30,16 +31,17 @@ export async function doctorCommand(cwd: string): Promise<void> {
       config.protocol.auditDirectory,
       config.protocol.releaseDirectory,
       config.protocol.skillSearchDirectory,
-      path.dirname(config.protocol.skillRegistry),
+      path.posix.dirname(config.protocol.skillRegistry),
     ];
 
     for (const relativePath of requiredDirectories) {
       try {
-        await access(path.join(root, relativePath));
+        const target = await resolvePortablePathWithinBoundary(root, relativePath, 'configured project path');
+        await access(target);
         console.log(`✓ ${relativePath}`);
-      } catch {
+      } catch (error) {
         failed = true;
-        console.error(`✗ missing: ${relativePath}`);
+        console.error(`✗ ${relativePath}: ${(error as Error).message}`);
       }
     }
 

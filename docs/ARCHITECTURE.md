@@ -411,6 +411,35 @@ cache/
 
 Конкретный release layout и формат `release.json` определены в `docs/DISTRIBUTION.md`.
 
+### 9.4 Filesystem containment
+
+Project paths и clone/worktree-local Harness state проходят через единый filesystem-aware boundary contract.
+
+Проверка состоит из двух независимых уровней:
+
+1. **Lexical containment** — absolute paths, `..`, platform separators и другие формы traversal не могут вывести portable path за declared boundary.
+2. **Filesystem containment** — ближайший существующий ancestor разрешается через canonical filesystem identity (`realpath`). Если symlink, junction или reparse point переводит target за canonical boundary, операция блокируется.
+
+Symlink/junction не запрещены сами по себе. Ссылка допустима, если её canonical target остаётся внутри той же разрешённой boundary.
+
+Clone-local `ai-harness` может ещё не существовать. В этом случае Core строит projected canonical boundary от ближайшего существующего ancestor, не создавая каталог во время read-only preflight. Dangling/unresolvable filesystem entry трактуется как fail-closed condition.
+
+Structured diagnostics различают:
+
+- `PATH_LEXICAL_ESCAPE`;
+- `PATH_FILESYSTEM_ESCAPE`;
+- `PATH_BOUNDARY_UNAVAILABLE`.
+
+Mutation flows должны:
+
+- проверять все известные targets до первой mutation, когда операция допускает полный preflight;
+- повторять boundary resolution непосредственно перед конкретной filesystem mutation;
+- использовать no-overwrite / atomic primitives там, где Node.js/filesystem API это позволяет.
+
+Это уменьшает TOCTOU window, но не объявляет filesystem transaction или sandbox guarantee. Для полной защиты от hostile concurrent filesystem mutation потребовались бы platform-specific descriptor-relative primitives уровня `openat`/handle-based APIs.
+
+Связанное требование: `CLI-REQ-224`.
+
 ## 10. Release resolver boundary
 
 Release Resolver является чистой границей между project pin и installed Harness Distribution.

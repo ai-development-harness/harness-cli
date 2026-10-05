@@ -1,7 +1,8 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_CONFIG, configPath, writeConfig } from '../core/config.js';
+import { DEFAULT_CONFIG, writeConfig } from '../core/config.js';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { resolvePortablePathWithinBoundary } from '../core/path-boundary.js';
 import { globalHarnessPaths } from '../core/paths.js';
 import { isReleaseError } from '../core/releases/errors.js';
 import { resolvePinnedRelease } from '../core/releases/resolver.js';
@@ -17,7 +18,7 @@ async function exists(filePath: string): Promise<boolean> {
 }
 
 async function ensureGitignoreEntry(projectRoot: string, entry: string): Promise<void> {
-  const gitignorePath = path.join(projectRoot, '.gitignore');
+  const gitignorePath = await resolvePortablePathWithinBoundary(projectRoot, '.gitignore', '.gitignore');
   const current = (await exists(gitignorePath)) ? await readFile(gitignorePath, 'utf8') : '';
   const lines = current.split(/\r?\n/).map((line) => line.trim());
 
@@ -33,7 +34,7 @@ const CLAUDE_BOOTSTRAP = `# AI Development Harness\n\nThis project uses AI Devel
 
 export async function setupCommand(cwd: string): Promise<void> {
   const root = await findGitRoot(cwd);
-  const targetConfig = configPath(root);
+  const targetConfig = await resolvePortablePathWithinBoundary(root, 'harness.yaml', 'harness.yaml');
 
   if (await exists(targetConfig)) {
     throw new Error(`Harness is already configured: ${targetConfig}`);
@@ -55,14 +56,12 @@ export async function setupCommand(cwd: string): Promise<void> {
     throw error;
   }
 
-  await writeConfig(root, DEFAULT_CONFIG);
-
   const directories = [
     DEFAULT_CONFIG.sources.requirements,
     DEFAULT_CONFIG.sources.adrDirectory,
     DEFAULT_CONFIG.sources.principles,
     DEFAULT_CONFIG.sources.openQuestions,
-    path.dirname(DEFAULT_CONFIG.protocol.skillRegistry),
+    path.posix.dirname(DEFAULT_CONFIG.protocol.skillRegistry),
     DEFAULT_CONFIG.protocol.taskDirectory,
     DEFAULT_CONFIG.protocol.reviewDirectory,
     DEFAULT_CONFIG.protocol.planningReviewDirectory,
@@ -72,23 +71,42 @@ export async function setupCommand(cwd: string): Promise<void> {
     DEFAULT_CONFIG.protocol.skillSearchDirectory,
   ];
 
-  await Promise.all(directories.map((entry) => mkdir(path.join(root, entry), { recursive: true })));
-
+  // Resolve every mutation target before the first write. This keeps setup
+  // fail-closed when any configured directory is redirected outside the
+  // repository through a symlink/junction/reparse point.
+  await resolvePortablePathWithinBoundary(root, 'harness.yaml', 'harness.yaml');
+  for (const entry of directories) {
+    await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
+  }
+  await resolvePortablePathWithinBoundary(root, '.gitignore', '.gitignore');
+  const agentsPath = await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md');
+  const claudePath = await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md');
   const statePath = await harnessStatePath(root);
-  await mkdir(statePath, { recursive: true });
 
+  await writeConfig(root, DEFAULT_CONFIG, { exclusive: true });
+  for (const entry of directories) {
+    const directory = await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
+    await mkdir(directory, { recursive: true });
+  }
+  await mkdir(await harnessStatePath(root), { recursive: true });
   await ensureGitignoreEntry(root, DEFAULT_CONFIG.sources.localBrief);
 
-  const agentsPath = path.join(root, 'AGENTS.md');
   if (!(await exists(agentsPath))) {
-    await writeFile(agentsPath, AGENTS_BOOTSTRAP, 'utf8');
+    await writeFile(
+      await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md'),
+      AGENTS_BOOTSTRAP,
+      { encoding: 'utf8', flag: 'wx' },
+    );
   } else {
     console.warn('AGENTS.md already exists; left unchanged.');
   }
 
-  const claudePath = path.join(root, 'CLAUDE.md');
   if (!(await exists(claudePath))) {
-    await writeFile(claudePath, CLAUDE_BOOTSTRAP, 'utf8');
+    await writeFile(
+      await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md'),
+      CLAUDE_BOOTSTRAP,
+      { encoding: 'utf8', flag: 'wx' },
+    );
   } else {
     console.warn('CLAUDE.md already exists; left unchanged.');
   }

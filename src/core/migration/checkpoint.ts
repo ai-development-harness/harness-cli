@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { link, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { harnessStatePath } from '../git.js';
+import { resolveHarnessStatePath } from '../git.js';
 import { serializeMigrationPlan } from './planner.js';
 import type { MigrationPlan } from './plan-types.js';
 import {
@@ -92,15 +92,15 @@ export async function migrationCheckpointPaths(
   migrationId: string,
 ): Promise<MigrationCheckpointPaths> {
   assertSafeMigrationId(migrationId);
-  const stateRoot = await harnessStatePath(projectRoot);
-  const root = path.join(stateRoot, 'migrations', migrationId);
-  return {
-    root,
-    plan: path.join(root, 'plan.json'),
-    journal: path.join(root, 'journal.json'),
-    backups: path.join(root, 'backups'),
-    partialReport: path.join(root, 'report.partial.json'),
-  };
+  const prefix = `migrations/${migrationId}`;
+  const [root, plan, journal, backups, partialReport] = await Promise.all([
+    resolveHarnessStatePath(projectRoot, prefix, 'migration checkpoint'),
+    resolveHarnessStatePath(projectRoot, `${prefix}/plan.json`, 'migration checkpoint plan'),
+    resolveHarnessStatePath(projectRoot, `${prefix}/journal.json`, 'migration checkpoint journal'),
+    resolveHarnessStatePath(projectRoot, `${prefix}/backups`, 'migration checkpoint backups'),
+    resolveHarnessStatePath(projectRoot, `${prefix}/report.partial.json`, 'migration checkpoint partial report'),
+  ]);
+  return { root, plan, journal, backups, partialReport };
 }
 
 function parsePlan(raw: string): MigrationPlan {

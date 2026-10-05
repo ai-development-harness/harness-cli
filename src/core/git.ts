@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { assertAbsolutePathWithinBoundary, resolvePortablePathWithinBoundary } from './path-boundary.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -61,8 +62,45 @@ export async function trackedProjectPaths(projectRoot: string): Promise<string[]
   return stdout.split('\0').filter(Boolean).sort();
 }
 
+async function harnessGitLocations(
+  projectRoot: string,
+): Promise<{ gitDir: string; statePath: string }> {
+  const [{ stdout: gitDirOutput }, { stdout: gitPathOutput }] = await Promise.all([
+    execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: projectRoot, encoding: 'utf8' }),
+    execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot, encoding: 'utf8' }),
+  ]);
+
+  const gitDirValue = gitDirOutput.trim();
+  const gitPathValue = gitPathOutput.trim();
+  return {
+    gitDir: path.isAbsolute(gitDirValue)
+      ? gitDirValue
+      : path.resolve(projectRoot, gitDirValue),
+    statePath: path.isAbsolute(gitPathValue)
+      ? gitPathValue
+      : path.resolve(projectRoot, gitPathValue),
+  };
+}
+
 export async function harnessStatePath(projectRoot: string): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot });
-  const gitPath = stdout.trim();
-  return path.isAbsolute(gitPath) ? gitPath : path.resolve(projectRoot, gitPath);
+  const { gitDir, statePath } = await harnessGitLocations(projectRoot);
+  return assertAbsolutePathWithinBoundary(gitDir, statePath, 'clone-local Harness state');
+}
+
+export async function resolveHarnessStatePath(
+  projectRoot: string,
+  portablePath: string,
+  label = 'clone-local Harness state path',
+): Promise<string> {
+  const { gitDir, statePath } = await harnessGitLocations(projectRoot);
+
+  // First prove the state root itself is still inside the Git-private boundary.
+  await assertAbsolutePathWithinBoundary(gitDir, statePath, 'clone-local Harness state');
+
+  // Resolve the child using portable-path semantics, then prove the final
+  // lexical target against the outer Git dir again. The second check matters
+  // when ai-harness did not exist during the first check and is replaced by a
+  // symlink/junction before the child path is resolved.
+  const target = await resolvePortablePathWithinBoundary(statePath, portablePath, label);
+  return assertAbsolutePathWithinBoundary(gitDir, target, label);
 }

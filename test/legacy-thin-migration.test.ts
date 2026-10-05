@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -37,6 +37,10 @@ async function writeText(root: string, relativePath: string, content: string): P
   const target = path.join(root, ...relativePath.split('/'));
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, content, 'utf8');
+}
+
+async function directoryLink(target: string, linkPath: string): Promise<void> {
+  await symlink(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
 async function createRepository(): Promise<{ base: string; repo: string }> {
@@ -307,12 +311,61 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(preparation.plan.blockers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'PROJECT_SCHEMA_CONFLICT',
+          code: 'PATH_LEXICAL_ESCAPE',
           paths: ['.harness/manifest.yaml'],
         }),
       ]),
     );
     await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('blocks configured project paths that escape through symlink or junction', async () => {
+    const { base, repo } = await createLegacyFixture();
+    const store = await installedStore(base);
+    const outside = path.join(base, 'outside-requirements');
+    await mkdir(outside, { recursive: true });
+    await rm(path.join(repo, 'docs', 'requirements'), { recursive: true, force: true });
+    await directoryLink(outside, path.join(repo, 'docs', 'requirements'));
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('blocked');
+    if (preparation.status !== 'blocked') throw new Error('expected blocked migration');
+    expect(preparation.plan.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PATH_FILESYSTEM_ESCAPE',
+          paths: ['.harness/manifest.yaml'],
+        }),
+      ]),
+    );
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('blocks clone-local execution state that escapes through symlink or junction', async () => {
+    const { base, repo } = await createLegacyFixture({ withIdleState: true });
+    const store = await installedStore(base);
+    const stateRoot = await harnessStatePath(repo);
+    const outside = path.join(base, 'outside-state');
+    await Promise.all([
+      mkdir(stateRoot, { recursive: true }),
+      mkdir(outside, { recursive: true }),
+    ]);
+    await directoryLink(outside, path.join(stateRoot, 'execution'));
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('blocked');
+    if (preparation.status !== 'blocked') throw new Error('expected blocked migration');
+    expect(preparation.plan.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PATH_FILESYSTEM_ESCAPE',
+          paths: ['.harness/local/execution/execution-status.json'],
+        }),
+      ]),
+    );
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('blocks when clone-local execution state already exists instead of overwriting it', async () => {

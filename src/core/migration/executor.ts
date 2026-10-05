@@ -4,6 +4,7 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { findGitRoot, trackedWorkingTreeBlobSha1 } from '../git.js';
+import { isPathBoundaryError, resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { ReleaseStore } from '../releases/store.js';
 import type { MigrationPlan, MigrationPlanOperation } from './plan-types.js';
 import {
@@ -45,22 +46,15 @@ async function currentHead(projectRoot: string): Promise<string | null> {
   }
 }
 
-function resolveProjectPath(projectRoot: string, portablePath: string): string {
-  if (!portablePath || portablePath.startsWith('/') || portablePath.includes('\\')) {
-    throw new MigrationExecutionError('PLAN_INVALID', `Unsafe migration path: ${portablePath}.`, { path: portablePath });
+async function resolveProjectPath(projectRoot: string, portablePath: string): Promise<string> {
+  try {
+    return await resolvePortablePathWithinBoundary(projectRoot, portablePath, 'migration project path');
+  } catch (error) {
+    if (isPathBoundaryError(error)) {
+      throw new MigrationExecutionError(error.code, error.message, error.details);
+    }
+    throw error;
   }
-  const segments = portablePath.split('/');
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
-    throw new MigrationExecutionError('PLAN_INVALID', `Unsafe migration path: ${portablePath}.`, { path: portablePath });
-  }
-  const resolved = path.resolve(projectRoot, ...segments);
-  const relative = path.relative(projectRoot, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new MigrationExecutionError('PLAN_INVALID', `Migration path escapes project root: ${portablePath}.`, {
-      path: portablePath,
-    });
-  }
-  return resolved;
 }
 
 async function fileExists(target: string): Promise<boolean> {
@@ -77,7 +71,7 @@ async function assertOperationPrecondition(
   projectRoot: string,
   operation: MigrationPlanOperation,
 ): Promise<void> {
-  const target = resolveProjectPath(projectRoot, operation.path);
+  const target = await resolveProjectPath(projectRoot, operation.path);
   switch (operation.precondition.kind) {
     case 'none':
       return;
@@ -158,7 +152,7 @@ async function assertProjectIdentity(plan: MigrationPlan): Promise<string> {
   return plannedRoot;
 }
 
-function assertReadyPlan(plan: MigrationPlan): void {
+async function assertReadyPlan(plan: MigrationPlan): Promise<void> {
   if (
     plan.schemaVersion !== 1 ||
     !plan.migrationId ||
@@ -181,7 +175,7 @@ function assertReadyPlan(plan: MigrationPlan): void {
       });
     }
     ids.add(operation.id);
-    resolveProjectPath(plan.source.projectRoot ?? '', operation.path);
+    await resolveProjectPath(plan.source.projectRoot ?? '', operation.path);
     if (operation.kind === 'BLOCK_CONFLICT') {
       throw new MigrationExecutionError('PLAN_BLOCKED', 'Executable plan contains BLOCK_CONFLICT operation.', {
         operationId: operation.id,
@@ -491,7 +485,7 @@ export async function executeMigration(
   plan: MigrationPlan,
   dependencies: MigrationExecutorDependencies = {},
 ): Promise<MigrationExecutionResult> {
-  assertReadyPlan(plan);
+  await assertReadyPlan(plan);
   const projectRoot = await assertProjectIdentity(plan);
   assertHandlersAvailable(plan, dependencies);
   await assertTargetRelease(plan, dependencies);
