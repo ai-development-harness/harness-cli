@@ -45,8 +45,11 @@ program
 
 program
   .command('status')
-  .description('Show Harness project status')
-  .action(() => statusCommand(process.cwd()));
+  .description('Show deterministic Harness project status and STEP facts')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    statusCommand(process.cwd(), { json: options.json ?? false }),
+  );
 
 const migrate = program
   .command('migrate')
