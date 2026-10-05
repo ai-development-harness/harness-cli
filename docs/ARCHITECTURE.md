@@ -142,6 +142,27 @@ Planning freshness, project-state projections, execution semantics и review con
 
 Связанные требования: `CLI-REQ-002`, `CLI-REQ-003`, `CLI-REQ-036`–`CLI-REQ-039`, `CLI-REQ-084`–`CLI-REQ-086`, `CLI-REQ-201`, `CLI-REQ-240`–`CLI-REQ-254`.
 
+### 4.3.2 Project State / Read Model Module
+
+`src/core/project/` строит derived state поверх canonical project artifacts:
+
+- artifact inventory;
+- traceability/dependency graph;
+- coverage metrics;
+- PROJECT STATUS facts;
+- STEP LIST / STEP SHOW;
+- affected STEP surface;
+- deterministic STEP NEXT;
+- tracked projections.
+
+Derived state не является вторым store. Любой DTO может быть полностью пересобран из canonical artifacts и injected deterministic providers.
+
+Planning freshness, completion proof и unresolved execution являются отдельными authorities. Project State принимает их через runtime-neutral providers и не дублирует реализацию #35/#36/#37.
+
+Нормативное описание: `docs/PROJECT_STATE.md`.
+
+Связанные требования: `CLI-REQ-003`, `CLI-REQ-087`–`CLI-REQ-089`, `CLI-REQ-200`–`CLI-REQ-202`, `CLI-REQ-240`, `CLI-REQ-241`.
+
 ### 4.4 Storage Module
 
 Отвечает за три независимых класса storage:
