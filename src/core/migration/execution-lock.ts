@@ -280,7 +280,16 @@ async function releaseOwnedLock(
 ): Promise<void> {
   const currentPath = await migrationExecutionLockPath(projectRoot);
   const current = await readOwner(currentPath);
-  if (current === null) return;
+  if (current === null) {
+    throw new MigrationExecutionError(
+      'MIGRATION_LOCK_LOST',
+      'Migration execution lock disappeared before release.',
+      {
+        expectedOwnerId: lease.owner.ownerId,
+        lockPath: currentPath,
+      },
+    );
+  }
   if (current.ownerId !== lease.owner.ownerId) {
     throw new MigrationExecutionError(
       'MIGRATION_LOCK_LOST',
@@ -428,8 +437,37 @@ export async function acquireMigrationExecutionLock(
       );
     }
     if (status.state === 'none') {
-      // The owner may have released between EEXIST and inspection.
-      acquired = await createOwnerRecord(projectRoot, migrationId, mode, dependencies);
+      // The owner may have released between EEXIST and inspection. Retry once,
+      // but preserve structured contention semantics if another owner wins.
+      try {
+        acquired = await createOwnerRecord(projectRoot, migrationId, mode, dependencies);
+      } catch (retryError) {
+        if ((retryError as NodeJS.ErrnoException).code !== 'EEXIST') throw retryError;
+        const current = await inspectMigrationExecutionLock(projectRoot, dependencies);
+        if (current.state === 'active') throw activeError(current);
+        if (current.state === 'corrupt') {
+          throw new MigrationExecutionError(
+            'MIGRATION_LOCK_CORRUPT',
+            current.error.message,
+            { lockPath: current.path },
+          );
+        }
+        if (current.state === 'stale') {
+          acquired = await takeOverStaleLock(
+            projectRoot,
+            current,
+            migrationId,
+            mode,
+            dependencies,
+          );
+        } else {
+          throw new MigrationExecutionError(
+            'MIGRATION_LOCK_RECOVERY_IN_PROGRESS',
+            'Migration execution lock changed repeatedly during acquisition.',
+            { lockPath: current.path },
+          );
+        }
+      }
     } else {
       acquired = await takeOverStaleLock(
         projectRoot,
