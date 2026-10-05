@@ -62,11 +62,65 @@ async function canonicalBoundary(boundaryRoot: string): Promise<{ lexical: strin
   try {
     return { lexical, canonical: await realpath(lexical) };
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw new PathBoundaryError(
+        'PATH_BOUNDARY_UNAVAILABLE',
+        `Path boundary cannot be resolved: ${lexical}.`,
+        { boundaryRoot: lexical, cause: (error as Error).message },
+      );
+    }
+  }
+
+  // A boundary may legitimately not exist yet (for example .git/ai-harness
+  // before the first clone-local write). A dangling symlink is different:
+  // lstat sees the directory entry even though realpath cannot resolve it,
+  // so fail closed instead of treating it as a plain missing path.
+  try {
+    await lstat(lexical);
     throw new PathBoundaryError(
       'PATH_BOUNDARY_UNAVAILABLE',
-      `Path boundary is missing or cannot be resolved: ${lexical}.`,
-      { boundaryRoot: lexical, cause: (error as Error).message },
+      `Path boundary is a dangling or unresolvable filesystem entry: ${lexical}.`,
+      { boundaryRoot: lexical },
     );
+  } catch (error) {
+    if (error instanceof PathBoundaryError) throw error;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw new PathBoundaryError(
+        'PATH_BOUNDARY_UNAVAILABLE',
+        `Path boundary cannot be inspected: ${lexical}.`,
+        { boundaryRoot: lexical, cause: (error as Error).message },
+      );
+    }
+  }
+
+  let ancestor = path.dirname(lexical);
+  while (true) {
+    try {
+      const canonicalAncestor = await realpath(ancestor);
+      const suffix = path.relative(ancestor, lexical);
+      return {
+        lexical,
+        canonical: path.resolve(canonicalAncestor, suffix),
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new PathBoundaryError(
+          'PATH_BOUNDARY_UNAVAILABLE',
+          `Cannot resolve an ancestor of path boundary: ${lexical}.`,
+          { boundaryRoot: lexical, ancestor, cause: (error as Error).message },
+        );
+      }
+    }
+
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) {
+      throw new PathBoundaryError(
+        'PATH_BOUNDARY_UNAVAILABLE',
+        `No resolvable ancestor exists for path boundary: ${lexical}.`,
+        { boundaryRoot: lexical },
+      );
+    }
+    ancestor = parent;
   }
 }
 
@@ -113,7 +167,7 @@ export async function assertAbsolutePathWithinBoundary(
     );
   }
 
-  const ancestor = await nearestExistingAncestor(lexicalTarget, boundary.lexical);
+  const ancestor = await nearestExistingAncestor(lexicalTarget, path.parse(lexicalTarget).root);
   let canonicalAncestor: string;
   try {
     canonicalAncestor = await realpath(ancestor);
@@ -131,7 +185,9 @@ export async function assertAbsolutePathWithinBoundary(
     );
   }
 
-  if (!isWithin(boundary.canonical, canonicalAncestor)) {
+  const suffix = path.relative(ancestor, lexicalTarget);
+  const canonicalTarget = path.resolve(canonicalAncestor, suffix);
+  if (!isWithin(boundary.canonical, canonicalTarget)) {
     throw new PathBoundaryError(
       'PATH_FILESYSTEM_ESCAPE',
       `${label} escapes its filesystem boundary through a symlink, junction, or reparse point: ${targetPath}.`,
@@ -142,6 +198,7 @@ export async function assertAbsolutePathWithinBoundary(
         target: lexicalTarget,
         existingAncestor: ancestor,
         canonicalExistingAncestor: canonicalAncestor,
+        canonicalTarget,
       },
     );
   }
