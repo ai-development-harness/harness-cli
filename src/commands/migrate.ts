@@ -151,10 +151,7 @@ export async function migrationPlanCommand(
     }
 
     let savedPlan: string | null = null;
-    if (options.out) {
-      if (preparation.status !== 'ready') {
-        throw new Error('Blocked migration plans are not persisted as executable Apply input.');
-      }
+    if (options.out && preparation.status === 'ready') {
       savedPlan = await savePlan(cwd, options.out, preparation.plan);
     }
 
@@ -192,6 +189,12 @@ export async function migrationApplyCommand(
 ): Promise<void> {
   try {
     const saved = await loadSavedPlan(cwd, planPath);
+    const currentRoot = await findGitRoot(cwd);
+    if (saved.plan.source.projectRoot !== currentRoot) {
+      throw new Error(
+        `Saved migration plan belongs to a different project: ${saved.plan.source.projectRoot ?? 'unknown'}.`,
+      );
+    }
     const result = await executeLegacyThinMigration({ status: 'ready', plan: saved.plan });
     if (json) {
       writeJson({ ok: true, status: result.status, planPath: saved.path, result });
