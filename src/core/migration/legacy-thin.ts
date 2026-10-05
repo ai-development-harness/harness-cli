@@ -463,7 +463,11 @@ async function verifyPreservedPaths(plan: MigrationPlan): Promise<string[]> {
     if (operation.precondition.kind === 'git-blob-sha1') {
       const actual = await trackedWorkingTreeBlobSha1(plan.source.projectRoot, operation.path);
       if (actual !== operation.precondition.value) failures.push(operation.path);
-    } else if (!(await exists(safeProjectPath(plan.source.projectRoot, operation.path)))) {
+    } else if (operation.precondition.kind === 'absent') {
+      if (await exists(safeProjectPath(plan.source.projectRoot, operation.path))) {
+        failures.push(operation.path);
+      }
+    } else if (operation.precondition.kind === 'none') {
       failures.push(operation.path);
     }
   }
