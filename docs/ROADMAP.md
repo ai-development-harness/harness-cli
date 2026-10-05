@@ -119,7 +119,11 @@ git rev-parse --git-path ai-harness
 - `harness doctor`;
 - `harness validate`;
 - `harness status`;
-- схема v1 для `harness.yaml`;
+- `harness release install/list/verify`;
+- `harness migrate inspect/plan/apply/resume/status`;
+- immutable Release Store / Resolver;
+- legacy v0.10.4 → thin Migration Engine;
+- schema v1 для `harness.yaml`;
 - кроссплатформенные пути глобального хранилища;
 - путь к clone-local state через Git;
 - базовые bootstrap-файлы `AGENTS.md` / `CLAUDE.md`;
@@ -128,9 +132,6 @@ git rev-parse --git-path ai-harness
 
 ### Пока не реализовано
 
-- хранилище неизменяемых релизов;
-- resolver релизов;
-- миграция из Harness, встроенного в репозиторий;
 - выделенный Harness Core;
 - движок протокола;
 - машина состояний команд в CLI;
@@ -276,7 +277,7 @@ resolver релизов
 
 ## 6. Этап 3 — миграция существующих repository-embedded проектов
 
-**Статус: базовый migration engine завершён в issues #15–#18: Inspector, Planner, checkpointed Executor и versioned v0.10.4 → thin transformations с verification/report. Следующий шаг — issue #19: публичный migration CLI и end-to-end compatibility matrix.**
+**Статус: завершён в issues #15–#19. Реализованы Inspector, Planner, checkpointed Executor, versioned v0.10.4 → thin transformations, публичный migration CLI и cross-platform E2E regression matrix. Следующий этап — выделение Harness Core.**
 
 Нужно поддержать существующие проекты, в которых Harness Core хранится внутри самого репозитория.
 
