@@ -2,6 +2,10 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_CONFIG, configPath, writeConfig } from '../core/config.js';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { globalHarnessPaths } from '../core/paths.js';
+import { isReleaseError } from '../core/releases/errors.js';
+import { resolvePinnedRelease } from '../core/releases/resolver.js';
+import { ReleaseStore } from '../core/releases/store.js';
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -33,6 +37,22 @@ export async function setupCommand(cwd: string): Promise<void> {
 
   if (await exists(targetConfig)) {
     throw new Error(`Harness is already configured: ${targetConfig}`);
+  }
+
+  try {
+    const globalPaths = globalHarnessPaths();
+    await resolvePinnedRelease(
+      new ReleaseStore(globalPaths.data),
+      DEFAULT_CONFIG.harness.release,
+      DEFAULT_CONFIG.schemaVersion,
+    );
+  } catch (error) {
+    if (isReleaseError(error)) {
+      throw new Error(
+        `${error.code}: Cannot configure project because Harness release ${DEFAULT_CONFIG.harness.release} is unavailable or incompatible. Install a verified release first with "harness release install <directory>". ${error.message}`,
+      );
+    }
+    throw error;
   }
 
   await writeConfig(root, DEFAULT_CONFIG);
