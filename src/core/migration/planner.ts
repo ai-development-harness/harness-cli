@@ -463,7 +463,14 @@ export async function planMigration(
     if (target.blocker) blockers.push(target.blocker);
   }
 
-  const operations = inspection.ownership.map(ownershipOperation);
+  const migratedOperationalPaths = new Set<string>();
+  if (executionState.exists && !executionState.active && !executionState.unknown) {
+    migratedOperationalPaths.add('.harness/local/execution/execution-status.json');
+  }
+
+  const operations = inspection.ownership
+    .filter((entry) => !migratedOperationalPaths.has(entry.path))
+    .map(ownershipOperation);
 
   if (executionState.exists && !executionState.active && !executionState.unknown && executionState.sha256) {
     operations.push({
