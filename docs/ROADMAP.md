@@ -277,7 +277,7 @@ resolver релизов
 
 ## 6. Этап 3 — миграция существующих repository-embedded проектов
 
-**Статус: завершён в issues #15–#19. Реализованы Inspector, Planner, checkpointed Executor, versioned v0.10.4 → thin transformations, публичный migration CLI и cross-platform E2E regression matrix. Следующий этап — выделение Harness Core.**
+**Статус: завершён в issues #15–#19; post-stage safety hardening выполнен в #25–#26. Реализованы Inspector, Planner, checkpointed Executor, versioned v0.10.4 → thin transformations, публичный migration CLI, filesystem-aware containment, worktree-scoped mutation serialization и cross-platform E2E regression matrix. Следующий этап — выделение Harness Core.**
 
 Нужно поддержать существующие проекты, в которых Harness Core хранится внутри самого репозитория.
 
