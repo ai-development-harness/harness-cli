@@ -831,6 +831,9 @@ Migration должна различать как минимум:
 - `UNKNOWN_ACTIVE_STATE`;
 - `ACTIVE_EXECUTION`;
 - `PROJECT_SCHEMA_CONFLICT`;
+- `PATH_LEXICAL_ESCAPE`;
+- `PATH_FILESYSTEM_ESCAPE`;
+- `PATH_BOUNDARY_UNAVAILABLE`;
 - `PLAN_STALE`;
 - `POSTCONDITION_FAILED`;
 - `MIGRATION_IN_PROGRESS`.
@@ -845,7 +848,11 @@ Target release validator может исполняться только в ра�
 
 До её определения migration verification должна использовать доверенный CLI/Core и declarative release metadata.
 
-Связанные требования: `CLI-REQ-225`.
+Filesystem paths migration проверяются не только лексически. Перед mutation Core доказывает canonical containment существующих ancestors и блокирует symlink/junction/reparse-point escape за repository или Git-private state boundary. Configured project paths, checkpoint paths, backup paths и clone-local operational state используют тот же общий contract.
+
+Legitimate symlink/junction, canonical target которого остаётся внутри разрешённой boundary, не блокируется.
+
+Связанные требования: `CLI-REQ-224`, `CLI-REQ-225`.
 
 ## 28. Что происходит со старым self-update механизмом
 
