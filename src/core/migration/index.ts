@@ -7,6 +7,12 @@ export {
   resumeMigration,
 } from './executor.js';
 export {
+  acquireMigrationExecutionLock,
+  inspectMigrationExecutionLock,
+  migrationExecutionLockPath,
+} from './execution-lock.js';
+export { listMigrationCheckpointIds } from './checkpoint.js';
+export {
   executeLegacyThinMigration,
   legacyThinOperationHandlers,
   prepareLegacyThinMigration,
@@ -60,3 +66,11 @@ export type {
   ProjectInspectionState,
   ProjectInspectorOptions,
 } from './types.js';
+
+export type {
+  MigrationExecutionLockDependencies,
+  MigrationExecutionLockLease,
+  MigrationExecutionLockMode,
+  MigrationExecutionLockOwner,
+  MigrationExecutionLockStatus,
+} from './execution-lock.js';
