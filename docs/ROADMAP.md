@@ -305,6 +305,9 @@ resolver релизов
 
 ## 7. Этап 4 — выделение Harness Core
 
+Baseline перед extraction зафиксирован в [EXTRACTION_BASELINE_V0.10.4.md](./EXTRACTION_BASELINE_V0.10.4.md). Machine-readable golden fixture привязан к template commit `9f4aa325154253ab72a8c5940e988046ae872c99` / Harness `0.10.4`; последующие extraction PR должны ссылаться на стабильные `PARITY-...` case IDs, а intentional thin-architecture deltas — на `THIN-...`.
+
+
 Перенести общую детерминированную логику из template-репозитория в устанавливаемый Core.
 
 Кандидаты на перенос:
