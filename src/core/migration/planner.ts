@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { access, readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { DEFAULT_CONFIG } from '../config.js';
 import { isReleaseError } from '../releases/errors.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
