@@ -543,6 +543,7 @@ export async function executeMigration(
     // Re-check all mutation-sensitive facts only after exclusive ownership.
     await assertProjectIdentity(plan);
     await assertTargetRelease(plan, dependencies);
+    await dependencies.beforeCheckpoint?.(plan, projectRoot);
     await assertNoConflictingCheckpoint(projectRoot, plan.migrationId);
     await assertInitialPreconditions(plan, projectRoot);
 
