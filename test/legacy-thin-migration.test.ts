@@ -256,6 +256,25 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(second).toEqual({ status: 'already-migrated', projectRoot: canonicalRepo });
     const secondResult = await executeLegacyThinMigration(second, { releaseStore: store });
     expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: canonicalRepo });
+  }, 15_000);
+
+  it('accepts CRLF-only platform checkout changes in supported bootstrap files', async () => {
+    const { base, repo } = await createLegacyFixture();
+    const store = await installedStore(base);
+
+    for (const relativePath of ['AGENTS.md', 'CLAUDE.md']) {
+      const target = path.join(repo, relativePath);
+      const source = await readFile(target, 'utf8');
+      await writeFile(target, source.replace(/\r?\n/g, '\r\n'), 'utf8');
+    }
+    await git(repo, ['add', 'AGENTS.md', 'CLAUDE.md']);
+    await git(repo, ['commit', '-m', 'simulate CRLF checkout']);
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('ready');
+    if (preparation.status !== 'ready') {
+      throw new Error(JSON.stringify(preparation.plan.blockers));
+    }
   });
 
   it('blocks target project paths that escape the repository before mutation', async () => {
