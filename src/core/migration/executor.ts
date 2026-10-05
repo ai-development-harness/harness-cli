@@ -277,6 +277,25 @@ async function assertNoConflictingCheckpoint(
   );
 }
 
+async function assertResumeCheckpointScope(
+  projectRoot: string,
+  migrationId: string,
+): Promise<void> {
+  const existing = await listMigrationCheckpointIds(projectRoot);
+  const conflicting = existing.filter((id) => id !== migrationId);
+  if (conflicting.length === 0) return;
+
+  throw new MigrationExecutionError(
+    'MIGRATION_CHECKPOINT_EXISTS',
+    'Multiple unfinished migration checkpoints exist. Resolve the conflicting checkpoint before resume.',
+    {
+      migrationId,
+      existingMigrationIds: existing,
+      conflictingMigrationIds: conflicting,
+    },
+  );
+}
+
 async function withMigrationExecutionLock<T>(
   projectRoot: string,
   migrationId: string,
@@ -564,6 +583,9 @@ export async function resumeMigration(
   return withMigrationExecutionLock(projectRoot, migrationId, 'resume', async () => {
     // Load only after ownership is acquired. Otherwise another resumer could
     // complete/remove the checkpoint between our read and lock acquisition.
+    // Also fail closed if another unfinished checkpoint makes worktree state
+    // ambiguous for deterministic recovery.
+    await assertResumeCheckpointScope(projectRoot, migrationId);
     const checkpoint = await loadMigrationCheckpoint(projectRoot, migrationId);
     return runCheckpoint(checkpoint, dependencies);
   });
