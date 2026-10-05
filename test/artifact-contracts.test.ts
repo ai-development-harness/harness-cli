@@ -611,11 +611,23 @@ fixture
 `,
     );
 
+    const adrPath = path.join(root, 'docs/adr/ADR-001-decision.md');
+    const adr = await readFile(adrPath, 'utf8');
+    await write(root, 'docs/adr/ADR-001-decision.md', adr.replace('status: accepted', 'status: invalid'));
+
+    const oqPath = path.join(root, 'docs/open-questions/OQ-001-choice.md');
+    const oq = await readFile(oqPath, 'utf8');
+    await write(
+      root,
+      'docs/open-questions/OQ-001-choice.md',
+      oq.replace(/## Decision needed\n\nfixture\n\n/, ''),
+    );
+
     const result = await validateProjectArtifacts(root);
 
     expect(result.status).toBe('FAIL');
     expect(result.diagnostics.some((item) => item.code === 'ARTIFACT_ID')).toBe(true);
-    expect(result.diagnostics.some((item) => item.code === 'ARTIFACT_FIELD')).toBe(true);
+    expect(result.diagnostics.some((item) => item.code === 'ARTIFACT_STATUS')).toBe(true);
     expect(result.diagnostics.some((item) => item.code === 'ARTIFACT_SECTION')).toBe(true);
     expect(
       result.diagnostics.some(
