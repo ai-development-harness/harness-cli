@@ -1,28 +1,36 @@
 # Harness CLI
 
-Experimental CLI control plane for [AI Development Harness](https://github.com/ai-development-harness).
+Экспериментальный CLI и управляющий слой [AI Development Harness](https://github.com/ai-development-harness).
 
-The goal is to separate the Harness product from project-owned artifacts. Projects keep durable knowledge such as requirements, ADRs, STEP files and reviews in Git, while the Harness protocol implementation, validators, core skills and tooling are distributed separately.
+Цель проекта — отделить сам Harness от артефактов конкретного проекта. Долговечные проектные знания — требования, ADR, STEP, результаты проверок и другие артефакты — остаются в Git-репозитории проекта, а реализация протокола Harness, валидаторы, базовые skills и инструменты поставляются отдельно.
 
-## Architectural boundary
+## Архитектурная граница
 
-Harness CLI is **not** a mandatory terminal wrapper around Claude Code or Codex.
+Harness CLI **не является обязательной терминальной обёрткой над Claude Code или Codex**.
 
-Interactive runtime sessions remain owned by the runtime itself, so permission prompts, WebFetch approvals, questions and other TTY interactions continue to work normally. The CLI is responsible for installation, configuration, deterministic validation, migrations and local control-plane services.
+Интерактивная сессия должна по возможности оставаться под управлением самого runtime, чтобы штатно работали запросы разрешений, подтверждения, вопросы пользователю, WebFetch/tool permissions и TTY-взаимодействие.
+
+CLI отвечает за:
+
+- установку;
+- конфигурацию;
+- детерминированную валидацию;
+- миграции;
+- локальные сервисы управляющего слоя.
 
 ```text
 Claude Code / Codex
         │
-        │ Harness protocol commands
+        │ команды протокола Harness
         ▼
-Harness integration / local API
+интеграционный слой / локальный API Harness
         │
         ▼
 Harness Core
-  ├─ protocol
-  ├─ validators
-  ├─ state machine
-  └─ project services
+  ├─ протокол
+  ├─ валидаторы
+  ├─ машина состояний
+  └─ проектные сервисы
 
 Harness CLI
   ├─ setup
@@ -32,20 +40,20 @@ Harness CLI
   └─ migrations
 ```
 
-## Current scope
+## Текущий объём
 
-This repository intentionally starts with a narrow, non-runtime slice:
+Репозиторий намеренно начинается с небольшого среза, не включающего запуск AI runtime:
 
-- `harness setup` — bootstrap an existing Git repository;
-- `harness doctor` — check prerequisites and expected project paths;
-- `harness validate` — validate `harness.yaml`;
-- `harness status` — show the pinned Harness release and clone-local state path.
+- `harness setup` — подготовить существующий Git-репозиторий для Harness;
+- `harness doctor` — проверить окружение и ожидаемую структуру проекта;
+- `harness validate` — проверить `harness.yaml`;
+- `harness status` — показать закреплённый релиз Harness и путь к локальному состоянию clone/worktree.
 
-It does **not** launch Claude Code or Codex.
+CLI **не запускает Claude Code или Codex**.
 
-## Project vs. Harness-owned state
+## Проектное состояние и состояние Harness
 
-Tracked project repository:
+В отслеживаемом Git-репозитории проекта остаются:
 
 ```text
 harness.yaml
@@ -56,17 +64,17 @@ planning/
 src/
 ```
 
-Clone-local operational state is stored through Git's private path resolution:
+Операционное состояние конкретного clone/worktree хранится вне tracked working tree через внутренний путь Git:
 
 ```text
 .git/ai-harness/
 ```
 
-The future installed Harness distribution will own protocol code, validators, core skills, runtime adapters and immutable releases outside the project repository.
+В будущем установленная distribution Harness должна владеть кодом протокола, валидаторами, базовыми skills, runtime adapters и immutable releases вне пользовательского репозитория.
 
-## Development
+## Разработка
 
-Requires Node.js 20+.
+Требуется Node.js 20+.
 
 ```bash
 npm install
@@ -75,7 +83,7 @@ npm test
 npm run build
 ```
 
-Run locally:
+Локальный запуск:
 
 ```bash
 npm run dev -- setup
@@ -84,9 +92,9 @@ npm run dev -- validate
 npm run dev -- status
 ```
 
-## Example project contract
+## Пример проектного контракта
 
-The initial schema mirrors the **project-owned** settings of the current Harness manifest and deliberately excludes embedded control-plane paths such as `.harness/tools/**` and Harness update policies.
+Начальная схема отражает **project-owned** настройки актуального manifest Harness и намеренно не включает repository-embedded элементы управляющего слоя вроде `.harness/tools/**` и политики обновления Harness.
 
 ```yaml
 schemaVersion: 1
@@ -137,15 +145,15 @@ protocol:
   skillRegistry: docs/skills/REGISTRY.md
 ```
 
-## Roadmap
+## План работ
 
-The canonical implementation plan is maintained in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Канонический план реализации хранится в [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-The next planned slice is **formalizing the product contract** before further expansion of the implementation:
+Следующий этап — **формализация продуктового контракта** до дальнейшего расширения реализации:
 
-1. `docs/PRODUCT_REQUIREMENTS.md` with stable `CLI-REQ-XXX` requirements;
-2. `docs/ARCHITECTURE.md` with module and ownership boundaries;
-3. `docs/MIGRATION.md` for transition from repository-embedded Harness projects;
-4. then immutable Harness Release Store / Resolver.
+1. `docs/PRODUCT_REQUIREMENTS.md` со стабильными требованиями `CLI-REQ-XXX`;
+2. `docs/ARCHITECTURE.md` с границами модулей и ответственности;
+3. `docs/MIGRATION.md` с правилами перехода от repository-embedded Harness;
+4. после этого — immutable Harness Release Store / Resolver.
 
-The roadmap deliberately does **not** assume that a GUI will exist. CLI/Core should expose reusable machine-readable integration surfaces for editor integrations and other external tools without making any particular client mandatory.
+План намеренно **не предполагает обязательного существования GUI**. CLI/Core должен предоставлять переиспользуемые machine-readable интерфейсы для editor integrations и других внешних инструментов, не делая какой-либо конкретный клиент обязательной частью архитектуры.
