@@ -154,6 +154,8 @@ protocol:
 
 Продуктовый контракт находится в [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) и использует стабильные идентификаторы `CLI-REQ-XXX`.
 
+Каноническая архитектура находится в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 Текущая последовательность этапа формализации:
 
 1. продуктовые требования — `docs/PRODUCT_REQUIREMENTS.md`;
