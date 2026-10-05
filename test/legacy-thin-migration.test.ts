@@ -258,6 +258,25 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: canonicalRepo });
   }, 30_000);
 
+  it('preserves a tracked project-owned deletion that existed at planning time', async () => {
+    const { base, repo } = await createLegacyFixture();
+    const store = await installedStore(base);
+    await rm(path.join(repo, 'CUSTOM.md'));
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('ready');
+    if (preparation.status !== 'ready') throw new Error('expected ready migration');
+
+    expect(
+      preparation.plan.operations.find((operation) => operation.path === 'CUSTOM.md')?.precondition,
+    ).toEqual({ kind: 'absent' });
+
+    const result = await executeLegacyThinMigration(preparation, { releaseStore: store });
+    expect(result.status).toBe('completed');
+    await expect(readFile(path.join(repo, 'CUSTOM.md'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  }, 20_000);
+
   it('accepts CRLF-only platform checkout changes in supported bootstrap files', async () => {
     const { base, repo } = await createLegacyFixture();
     const store = await installedStore(base);
