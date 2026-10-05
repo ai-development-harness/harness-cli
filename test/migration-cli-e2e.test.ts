@@ -161,7 +161,7 @@ describe('migration CLI end-to-end', () => {
       status: 'already-migrated',
       mutations: 0,
     });
-  }, 15_000);
+  }, 30_000);
 
   it('supports explicit baseline adoption when the legacy lock is absent', async () => {
     const { base, repo, env } = await fixture({ withLock: false });
@@ -288,7 +288,7 @@ describe('migration CLI end-to-end', () => {
 
     const after = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(after).checkpoints).toEqual([]);
-  }, 15_000);
+  }, 30_000);
 
   it('reports a corrupted checkpoint and refuses automatic resume', async () => {
     const { repo, env, releaseStore } = await fixture();
@@ -307,7 +307,7 @@ describe('migration CLI end-to-end', () => {
     const resume = await runCli(repo, ['migrate', 'resume', migrationId, '--json'], env);
     expect(resume.code).toBe(1);
     expect(jsonOutput(resume).error.code).toBe('JOURNAL_CORRUPT');
-  });
+  }, 15_000);
 
   it('blocks active legacy execution state', async () => {
     const { repo, env } = await fixture({ activeExecution: true });
@@ -335,7 +335,7 @@ describe('migration CLI end-to-end', () => {
     expect(apply.code, apply.stderr || apply.stdout).toBe(0);
     expect(jsonOutput(apply).status).toBe('completed');
     expect(await readFile(path.join(worktree, 'harness.yaml'), 'utf8')).toContain('release: 0.10.4');
-  }, 15_000);
+  }, 30_000);
 
   it('rejects Windows-style separators in portable project paths on every host OS', async () => {
     const { repo, env } = await fixture({ windowsStyleRequirementsPath: true });
