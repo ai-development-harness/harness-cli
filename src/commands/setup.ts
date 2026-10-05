@@ -56,14 +56,12 @@ export async function setupCommand(cwd: string): Promise<void> {
     throw error;
   }
 
-  await writeConfig(root, DEFAULT_CONFIG);
-
   const directories = [
     DEFAULT_CONFIG.sources.requirements,
     DEFAULT_CONFIG.sources.adrDirectory,
     DEFAULT_CONFIG.sources.principles,
     DEFAULT_CONFIG.sources.openQuestions,
-    path.dirname(DEFAULT_CONFIG.protocol.skillRegistry),
+    path.posix.dirname(DEFAULT_CONFIG.protocol.skillRegistry),
     DEFAULT_CONFIG.protocol.taskDirectory,
     DEFAULT_CONFIG.protocol.reviewDirectory,
     DEFAULT_CONFIG.protocol.planningReviewDirectory,
@@ -73,24 +71,34 @@ export async function setupCommand(cwd: string): Promise<void> {
     DEFAULT_CONFIG.protocol.skillSearchDirectory,
   ];
 
+  // Resolve every mutation target before the first write. This keeps setup
+  // fail-closed when any configured directory is redirected outside the
+  // repository through a symlink/junction/reparse point.
+  await resolvePortablePathWithinBoundary(root, 'harness.yaml', 'harness.yaml');
+  const resolvedDirectories: string[] = [];
   for (const entry of directories) {
-    const directory = await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
+    resolvedDirectories.push(
+      await resolvePortablePathWithinBoundary(root, entry, 'setup project directory'),
+    );
+  }
+  await resolvePortablePathWithinBoundary(root, '.gitignore', '.gitignore');
+  const agentsPath = await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md');
+  const claudePath = await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md');
+  const statePath = await harnessStatePath(root);
+
+  await writeConfig(root, DEFAULT_CONFIG);
+  for (const directory of resolvedDirectories) {
     await mkdir(directory, { recursive: true });
   }
-
-  const statePath = await harnessStatePath(root);
   await mkdir(statePath, { recursive: true });
-
   await ensureGitignoreEntry(root, DEFAULT_CONFIG.sources.localBrief);
 
-  const agentsPath = await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md');
   if (!(await exists(agentsPath))) {
     await writeFile(agentsPath, AGENTS_BOOTSTRAP, 'utf8');
   } else {
     console.warn('AGENTS.md already exists; left unchanged.');
   }
 
-  const claudePath = await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md');
   if (!(await exists(claudePath))) {
     await writeFile(claudePath, CLAUDE_BOOTSTRAP, 'utf8');
   } else {
