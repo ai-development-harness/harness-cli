@@ -68,6 +68,24 @@ Tracked projections остаются **производными**: roadmap, proj
 
 Operational execution state фиксируется отдельно от canonical artifacts и должен сохранять v0.10.4 state-authority/resume semantics после extraction.
 
+
+Execution Status baseline отдельно фиксирует:
+
+- schema v2;
+- modes `single | chain | orchestration`;
+- execution statuses `running | complete | blocked`;
+- command results `SUCCESS | PASS | FAIL | BLOCKED`;
+- resolver outcomes `RESUME | NEXT | DONE | BLOCKED | NOT_FOUND`;
+- monotonic `nextOrdinal`;
+- exact `executionId` binding для semantic completion;
+- bounded terminal window 100 records;
+- 16 KiB limits для `current.details` и intent basis;
+- максимум 8 progress telemetry samples.
+
+Storage path `.harness/local/execution/execution-status.json` относится только к reference architecture. В thin architecture semantics сохраняется, а storage намеренно переезжает в Git-private `ai-harness` (`THIN-001`).
+
+Immutable implementation/planning/INIT reports используют verdict `pass | fail | blocked`; structured finding categories — `implementation | evidence | contract`. Existing durable report path не может быть перезаписан.
+
 ## Parity map
 
 | Case | Planned issue | Target Core ownership | Semantics |
