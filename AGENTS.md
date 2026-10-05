@@ -14,7 +14,7 @@ AI Development Harness — это repository-driven система для упр
 - migrations project schema;
 - protocol engine / state machine;
 - deterministic validators и project services;
-- общий local API / integration surface для UI, editor integrations и runtime adapters.
+- общий local API / integration surface для editor integrations, runtime adapters и других внешних инструментов.
 
 Этот репозиторий **не является обычным Harness-проектом-потребителем**. Здесь разрабатывается сам продукт Harness CLI.
 
@@ -140,14 +140,12 @@ git rev-parse --git-path ai-harness
 
 - Harness protocol/template reference:
   `https://github.com/ai-development-harness/ai-development-harness-template`
-- UI client:
-  `https://github.com/ai-development-harness/ai-development-harness-client`
-- VSCode extension:
-  `https://github.com/ai-development-harness/ai-development-harness-vscode-extension`
+- VSCode Harness Navigator:
+  `https://github.com/ai-development-harness/vscode-harness-navigator`
 - Project website:
   `https://github.com/ai-development-harness/website`
 
-CLI/Core должен проектироваться как переиспользуемая программная основа. UI и editor integrations не должны независимо дублировать protocol/state-machine semantics.
+CLI/Core должен проектироваться как переиспользуемая программная основа. Editor и другие внешние integrations не должны независимо дублировать protocol/state-machine semantics.
 
 ## 7. Технические правила
 
@@ -228,7 +226,7 @@ CLI будет работать с реальными пользовательс
 2. migration существующих repository-embedded Harness projects;
 3. protocol/core extraction;
 4. runtime integration contract без перехвата интерактивного TUI;
-5. local API / MCP-like surface для CLI, UI и editor integrations.
+5. local API / MCP-like surface для CLI, editor integrations и других внешних инструментов.
 
 Не считай будущие пункты уже реализованными. Перед использованием возможности проверяй фактический код.
 
@@ -240,4 +238,4 @@ CLI будет работать с реальными пользовательс
 
 Если логика общая для всех Harness projects, детерминирована и не является project knowledge, по умолчанию ей место в Harness Core/CLI, а не в сгенерированных файлах каждого проекта.
 
-Сохраняй CLI runtime-neutral, cross-platform и пригодным как shared engine для других клиентов.
+Сохраняй CLI runtime-neutral, cross-platform и пригодным как shared engine для других интеграций.
