@@ -48,6 +48,25 @@ const baseline = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
     canonicalArtifacts: string[];
     durableReportKinds: string[];
     projectionKinds: string[];
+    reviewVerdicts: string[];
+    findingCategories: string[];
+    immutabilityRule: string;
+  };
+  executionStateContract: {
+    schemaVersion: number;
+    sourceStorage: string;
+    targetStorage: string;
+    modes: string[];
+    executionStatuses: string[];
+    commandResults: string[];
+    resolverStatuses: string[];
+    bounds: {
+      recentTerminals: number;
+      currentDetailsBytes: number;
+      intentBasisBytes: number;
+      progressTelemetrySamples: number;
+    };
+    invariants: string[];
   };
   runtimeAdapterContract: {
     methods: string[];
@@ -146,6 +165,39 @@ describe('Harness v0.10.4 extraction baseline', () => {
     expect(baseline.artifactContracts.durableReportKinds).toContain('planning-review');
     expect(baseline.artifactContracts.projectionKinds).toEqual(
       expect.arrayContaining(['roadmap', 'project-status', 'open-questions-index']),
+    );
+  });
+
+  it('captures execution-state and immutable review contracts explicitly', () => {
+    expect(baseline.artifactContracts.reviewVerdicts).toEqual(['pass', 'fail', 'blocked']);
+    expect(baseline.artifactContracts.findingCategories).toEqual([
+      'implementation',
+      'evidence',
+      'contract',
+    ]);
+    expect(baseline.artifactContracts.immutabilityRule).toContain('cannot be overwritten');
+
+    expect(baseline.executionStateContract).toMatchObject({
+      schemaVersion: 2,
+      sourceStorage: '.harness/local/execution/execution-status.json',
+      targetStorage: 'git-private ai-harness',
+      modes: ['single', 'chain', 'orchestration'],
+      executionStatuses: ['running', 'complete', 'blocked'],
+      commandResults: ['SUCCESS', 'PASS', 'FAIL', 'BLOCKED'],
+      resolverStatuses: ['RESUME', 'NEXT', 'DONE', 'BLOCKED', 'NOT_FOUND'],
+      bounds: {
+        recentTerminals: 100,
+        currentDetailsBytes: 16_384,
+        intentBasisBytes: 16_384,
+        progressTelemetrySamples: 8,
+      },
+    });
+    expect(baseline.executionStateContract.invariants).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('executionId'),
+        expect.stringContaining('monotonic'),
+        expect.stringContaining('intent basis'),
+      ]),
     );
   });
 
