@@ -75,6 +75,28 @@ async function fileExists(target: string): Promise<boolean> {
 
 async function workingTreeBlobSha1(projectRoot: string, portablePath: string): Promise<string | null> {
   try {
+    const literalPath = `:(literal)${portablePath}`;
+    const { stdout: status } = await execFileAsync(
+      'git',
+      ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', literalPath],
+      { cwd: projectRoot, encoding: 'utf8' },
+    );
+
+    if (status.length === 0) {
+      const { stdout: index } = await execFileAsync(
+        'git',
+        ['ls-files', '-s', '-z', '--', literalPath],
+        { cwd: projectRoot, encoding: 'utf8' },
+      );
+      const token = index.split('\0').find(Boolean);
+      if (token) {
+        const tab = token.indexOf('\t');
+        const metadata = (tab >= 0 ? token.slice(0, tab) : token).split(' ');
+        const sha = metadata[1] ?? '';
+        if (/^[0-9a-f]{40}$/.test(sha)) return sha;
+      }
+    }
+
     const { stdout } = await execFileAsync(
       'git',
       ['hash-object', '--no-filters', '--', portablePath],
