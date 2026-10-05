@@ -70,16 +70,16 @@ function resolveGitPath(root: string, value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(root, value);
 }
 
-async function gitMetadata(root: string): Promise<{ gitDir: string; commonGitDir: string; headSha: string }> {
+async function gitMetadata(root: string): Promise<{ gitDir: string; commonGitDir: string; headSha: string | null }> {
   const [gitDir, commonGitDir, headSha] = await Promise.all([
     git(root, ['rev-parse', '--git-dir']),
     git(root, ['rev-parse', '--git-common-dir']),
-    git(root, ['rev-parse', 'HEAD']),
+    git(root, ['rev-parse', 'HEAD']).catch(() => null),
   ]);
   return {
     gitDir: resolveGitPath(root, gitDir.trim()),
     commonGitDir: resolveGitPath(root, commonGitDir.trim()),
-    headSha: headSha.trim(),
+    headSha: headSha?.trim() ?? null,
   };
 }
 
