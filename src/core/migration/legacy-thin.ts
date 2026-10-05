@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } f
 import { harnessStatePath, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
-import { atomicWriteText } from './checkpoint.js';
+import { atomicWriteText, exclusiveWriteText } from './checkpoint.js';
 import { executeMigration, resumeMigration } from './executor.js';
 import {
   MigrationExecutionError,
@@ -56,6 +56,36 @@ async function exists(target: string): Promise<boolean> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
     if ((error as NodeJS.ErrnoException).code === 'EISDIR') return true;
     throw error;
+  }
+}
+
+async function assertProjectTargetAbsent(
+  projectRoot: string,
+  targetPath: string,
+  operationId: string,
+): Promise<void> {
+  const target = safeProjectPath(projectRoot, targetPath);
+  if (await exists(target)) {
+    throw new MigrationExecutionError(
+      'PLAN_STALE',
+      `Migration target appeared after planning: ${targetPath}.`,
+      { operationId, targetPath },
+    );
+  }
+}
+
+async function assertLocalStateTargetAbsent(
+  projectRoot: string,
+  operationId: string,
+): Promise<void> {
+  const stateRoot = await harnessStatePath(projectRoot);
+  const target = path.join(stateRoot, 'execution', 'execution-status.json');
+  if (await exists(target)) {
+    throw new MigrationExecutionError(
+      'PLAN_STALE',
+      'Clone-local execution state appeared after planning.',
+      { operationId, target },
+    );
   }
 }
 
@@ -294,6 +324,18 @@ async function backupSource(context: MigrationOperationContext): Promise<string 
 
 function transformHandler(): MigrationOperationHandler {
   return {
+    async preflight(context): Promise<void> {
+      if (!context.operation.targetPath) {
+        throw new MigrationExecutionError('PLAN_INVALID', 'TRANSFORM operation has no target path.', {
+          operationId: context.operation.id,
+        });
+      }
+      await assertProjectTargetAbsent(
+        context.projectRoot,
+        context.operation.targetPath,
+        context.operation.id,
+      );
+    },
     async apply(context): Promise<MigrationOperationPostcondition> {
       if (context.operation.strategy !== 'legacy-manifest-to-thin-config' || !context.operation.targetPath) {
         throw new Error(`Unsupported TRANSFORM strategy: ${context.operation.strategy}`);
@@ -304,7 +346,7 @@ function transformHandler(): MigrationOperationHandler {
         throw new Error('Prepared transform descriptor hash is inconsistent.');
       }
       await backupSource(context);
-      await atomicWriteText(safeProjectPath(context.projectRoot, context.operation.targetPath), content);
+      await exclusiveWriteText(safeProjectPath(context.projectRoot, context.operation.targetPath), content);
       await rm(safeProjectPath(context.projectRoot, context.operation.path), { force: true });
       return { sourceAbsent: true, targetPath: context.operation.targetPath, sha256: expected };
     },
@@ -350,16 +392,16 @@ function deleteCleanHandler(): MigrationOperationHandler {
 
 function migrateLocalStateHandler(): MigrationOperationHandler {
   return {
+    async preflight(context): Promise<void> {
+      await assertLocalStateTargetAbsent(context.projectRoot, context.operation.id);
+    },
     async apply(context): Promise<MigrationOperationPostcondition> {
       const source = safeProjectPath(context.projectRoot, context.operation.path);
       const bytes = await readFile(source);
       await backupSource(context);
       const stateRoot = await harnessStatePath(context.projectRoot);
       const target = path.join(stateRoot, 'execution', 'execution-status.json');
-      if (await exists(target)) {
-        throw new Error('Clone-local execution state appeared after planning; refusing to overwrite it.');
-      }
-      await atomicWriteText(target, bytes.toString('utf8'));
+      await exclusiveWriteText(target, bytes.toString('utf8'));
       await rm(source, { force: true });
       return { sourceAbsent: true, target, sha256: sha256(bytes) };
     },
@@ -504,7 +546,7 @@ function reportHandler(store: ReleaseStore): MigrationOperationHandler {
       const report = buildMigrationReport(context.plan, verification);
       const target = safeProjectPath(context.projectRoot, context.operation.path);
       await mkdir(path.dirname(target), { recursive: true });
-      await atomicWriteText(target, report);
+      await exclusiveWriteText(target, report);
       return { sha256: sha256(report), verification: 'PASS' };
     },
     async verify(context, postcondition): Promise<boolean> {
@@ -595,6 +637,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
           throw new Error(`Unsupported prepared TRANSFORM operation: ${operation.id}.`);
         }
         await assertPreparedTrackedSourceCurrent(plan, operation);
+        await assertProjectTargetAbsent(plan.source.projectRoot, operation.targetPath, operation.id);
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const expectedContent = buildThinConfig(source, plan);
         const content = operation.targetDescriptor?.content;
@@ -654,7 +697,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         break;
       }
 
-      case 'MIGRATE_LOCAL_STATE':
+      case 'MIGRATE_LOCAL_STATE': {
         if (
           operation.path !== '.harness/local/execution/execution-status.json' ||
           operation.targetPath !== 'ai-harness/execution/execution-status.json' ||
@@ -664,7 +707,9 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         ) {
           throw new Error(`Unsupported local-state migration operation: ${operation.id}.`);
         }
+        await assertLocalStateTargetAbsent(plan.source.projectRoot, operation.id);
         break;
+      }
 
       case 'CREATE': {
         const expectedReportPath =
@@ -677,6 +722,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         ) {
           throw new Error(`Unsupported CREATE operation in saved plan: ${operation.id}.`);
         }
+        await assertProjectTargetAbsent(plan.source.projectRoot, operation.path, operation.id);
         break;
       }
 
