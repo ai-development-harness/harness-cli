@@ -205,6 +205,20 @@ thin-harness-invalid
 
 Связанные требования: `CLI-REQ-020`–`CLI-REQ-024`, `CLI-REQ-120`.
 
+## 6.1 Текущая implementation compatibility
+
+Первый versioned legacy compatibility descriptor реализуется для Harness release `0.10.4` / tag `v0.10.4`.
+
+Descriptor содержит:
+
+- immutable source repository/ref/commit;
+- ownership policy именно этого release;
+- Git blob SHA baseline-owned файлов.
+
+Это позволяет read-only Inspector сравнивать локальные bytes с доказанным historical baseline без обращения к moving `main`.
+
+Другие historical releases не выводятся по сходству файлов и до добавления отдельного versioned descriptor возвращают `UNSUPPORTED_LEGACY_RELEASE`.
+
 ## 7. Baseline resolution
 
 ### 7.1 Legacy lock
