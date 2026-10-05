@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -252,9 +252,10 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(report).toContain('CUSTOM.md');
 
     const second = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
-    expect(second).toEqual({ status: 'already-migrated', projectRoot: repo });
+    const canonicalRepo = await realpath(repo);
+    expect(second).toEqual({ status: 'already-migrated', projectRoot: canonicalRepo });
     const secondResult = await executeLegacyThinMigration(second, { releaseStore: store });
-    expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: repo });
+    expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: canonicalRepo });
   });
 
   it('blocks target project paths that escape the repository before mutation', async () => {
