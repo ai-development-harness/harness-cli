@@ -1,16 +1,16 @@
 @AGENTS.md
 
-# Claude Code adapter
+# Адаптер Claude Code
 
-Этот файл является тонким adapter layer для Claude Code. Основной project contract находится в `AGENTS.md` и имеет приоритет.
+Этот файл является тонким адаптерным слоем для Claude Code. Основной контракт проекта находится в `AGENTS.md` и имеет приоритет.
 
 Дополнительные правила для Claude Code:
 
-- Не интерпретируй этот repository как пользовательский Harness project только потому, что здесь разрабатывается Harness.
-- Не создавай repository-embedded `.harness/tools/**` как default architecture: цель этого проекта — вынести Harness-owned control plane в устанавливаемый CLI/Core.
+- Не интерпретируй этот репозиторий как пользовательский проект Harness только потому, что здесь разрабатывается Harness.
+- Не создавай встроенную в репозиторий `.harness/tools/**` как архитектуру по умолчанию: цель этого проекта — вынести управляющий слой, принадлежащий Harness в устанавливаемый CLI/Core.
 - Не превращай `harness` CLI в обязательную обёртку вокруг `claude` или Codex TUI.
-- При проектировании runtime integration сохраняй native Claude Code permissions, approvals, questions и interactive session semantics.
-- Claude-specific transport/config не должен менять protocol semantics Harness Core.
-- Общую логику, которая нужна также Codex, editor integrations и другим runtime adapters, размещай в runtime-neutral core layer, а не в Claude-specific коде.
-- Перед изменением protocol behavior сверяй текущий Harness template/reference и явно отделяй legacy repository-embedded implementation от целевой CLI architecture.
-- Для проверки изменений используй штатные repository scripts из `package.json`; не подменяй их незафиксированными локальными процедурами.
+- При проектировании интеграции с runtime сохраняй нативные разрешения Claude Code, подтверждения, вопросы и семантику интерактивной сессии.
+- Транспорт и конфигурация Claude-specific не должен менять семантику протокола Harness Core.
+- Общую логику, которая нужна также Codex, интеграциям редакторов и другим runtime-адаптерам, размещай в независимом от runtime слое Core, а не в коде, специфичном для Claude.
+- Перед изменением поведения протокола сверяй текущий актуальным template/reference Harness и явно отделяй устаревшую встроенную в репозиторий реализацию от целевой архитектуры CLI.
+- Для проверки изменений используй штатные скрипты репозитория из `package.json`; не подменяй их незафиксированными локальными процедурами.
