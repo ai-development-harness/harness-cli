@@ -528,6 +528,40 @@ export function legacyThinOperationHandlers(store: ReleaseStore): MigrationOpera
   };
 }
 
+function assertPreparedLegacyThinPlan(plan: MigrationPlan): void {
+  if (
+    plan.schemaVersion !== 1 ||
+    plan.status !== 'ready' ||
+    plan.blockers.length !== 0 ||
+    plan.source.projectRoot === null ||
+    plan.target.harnessRelease === null ||
+    plan.target.releaseDigest === null
+  ) {
+    throw new Error('Legacy thin migration requires a ready prepared plan with verified target identity.');
+  }
+
+  const preparedStrategies = new Set([
+    'legacy-manifest-to-thin-config',
+    'thin-agents-bootstrap-preserve-project-blocks',
+    'thin-claude-adapter-preserve-project-content',
+  ]);
+
+  for (const operation of plan.operations) {
+    if (!preparedStrategies.has(operation.strategy)) continue;
+    const content = operation.targetDescriptor?.content;
+    const digest = operation.targetDescriptor?.sha256;
+    if (
+      typeof content !== 'string' ||
+      typeof digest !== 'string' ||
+      digest !== sha256(content)
+    ) {
+      throw new Error(
+        `Migration operation ${operation.id} is missing an immutable prepared target descriptor.`,
+      );
+    }
+  }
+}
+
 export type LegacyThinMigrationExecution =
   | { status: 'already-migrated'; mutations: 0; projectRoot: string }
   | MigrationExecutionResult;
@@ -540,6 +574,7 @@ export async function executeLegacyThinMigration(
     return { status: 'already-migrated', mutations: 0, projectRoot: preparation.projectRoot };
   }
   if (preparation.status === 'blocked') throw new Error('Legacy thin migration plan is blocked.');
+  assertPreparedLegacyThinPlan(preparation.plan);
   const store = dependencies.releaseStore ?? new ReleaseStore();
   const result = await executeMigration(preparation.plan, {
     ...dependencies,
