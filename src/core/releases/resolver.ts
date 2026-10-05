@@ -1,9 +1,8 @@
+import { HOST_API_VERSION } from '../host/contract.js';
 import { getPackageVersion } from '../package.js';
 import { ReleaseError } from './errors.js';
 import { isSemverInRange } from './semver.js';
 import { ReleaseStore, type InstalledRelease } from './store.js';
-
-export const HOST_API_VERSION = 1;
 
 export interface ResolveReleaseOptions {
   cliVersion?: string;
@@ -77,3 +76,5 @@ export async function resolvePinnedRelease(
 
   return { ...installed, status: 'resolved' };
 }
+
+export { HOST_API_VERSION } from '../host/contract.js';

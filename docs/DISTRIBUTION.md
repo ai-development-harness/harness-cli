@@ -383,9 +383,156 @@ Contract:
 - entrypoint integrity проверена до загрузки;
 - entrypoint не требует `npm install` внутри release root;
 - dependency resolution не должна зависеть от project `node_modules`;
-- installer не запускает entrypoint во время обычной распаковки/установки.
+- installer не запускает entrypoint во время обычной распаковки/установки;
+- CLI host разрешает **точный** project pin из `harness.yaml` и не выбирает `latest`, `main` или соседний release;
+- Host API compatibility проверяется по `release.json` **до** import executable entrypoint;
+- после import runtime declaration Core также обязана совпасть с Host API v1.
 
 Release-owned Core должен быть self-contained либо использовать только явно версионированный Host API.
+
+### 10.1 Host API v1 module shape
+
+Declared ESM entrypoint экспортирует named object:
+
+```js
+export const harnessCore = {
+  hostApiVersion: 1,
+
+  async execute(request, ports) {
+    // release-owned deterministic semantics
+  }
+};
+```
+
+CLI не ищет альтернативный export и не выполняет package lifecycle scripts для discovery/bootstrap.
+
+`harnessCore.execute` получает только Host API request и runtime-neutral ports. Commander, terminal presentation и UI objects в contract не входят.
+
+### 10.2 Request envelope
+
+Host формирует request schema v1:
+
+```json
+{
+  "schemaVersion": 1,
+  "hostApiVersion": 1,
+  "requestId": "<uuid>",
+  "projectRoot": "<canonical absolute project root>",
+  "operation": "<host operation>",
+  "versions": {
+    "cli": "0.1.0",
+    "harnessRelease": "0.10.4",
+    "projectSchema": 1,
+    "releaseDigest": "<sha256 release.json>"
+  },
+  "input": {}
+}
+```
+
+`projectRoot` задаётся host-ом явно и не выводится release code из `cwd`.
+
+Четыре identity/version domain намеренно различимы:
+
+- CLI package version;
+- Harness release;
+- project schema version;
+- immutable release digest.
+
+### 10.3 Result/error envelope
+
+Core возвращает один из двух schema-v1 envelopes.
+
+Success:
+
+```json
+{
+  "schemaVersion": 1,
+  "hostApiVersion": 1,
+  "requestId": "<same uuid>",
+  "ok": true,
+  "versions": {
+    "cli": "0.1.0",
+    "harnessRelease": "0.10.4",
+    "projectSchema": 1,
+    "releaseDigest": "<same digest>"
+  },
+  "result": {}
+}
+```
+
+Failure:
+
+```json
+{
+  "schemaVersion": 1,
+  "hostApiVersion": 1,
+  "requestId": "<same uuid>",
+  "ok": false,
+  "versions": {
+    "cli": "0.1.0",
+    "harnessRelease": "0.10.4",
+    "projectSchema": 1,
+    "releaseDigest": "<same digest>"
+  },
+  "error": {
+    "code": "DOMAIN_ERROR_CODE",
+    "message": "Stable diagnostic",
+    "details": {}
+  }
+}
+```
+
+Host валидирует schema/version/request identity перед возвратом результата caller-у. Thrown exception Core не проходит наружу как необработанный stack trace: host переводит его в typed `CORE_EXECUTION_FAILED`. Невалидный envelope становится `CORE_INVALID_RESPONSE`.
+
+### 10.4 Runtime-neutral ports
+
+Host API v1 предоставляет три named ports:
+
+```text
+filesystem.call({ operation, input })
+git.call({ operation, input })
+storage.call({ operation, input })
+```
+
+Port contract намеренно не зависит от Commander/UI/runtime SDK. Конкретный набор разрешённых filesystem/Git/storage operations развивается в Core/infrastructure layers; Host API остаётся boundary dependency injection.
+
+Core не должен обходить ports ради project-specific host behavior. Нативные Node APIs, которые нужны внутренней pure computation release bundle, не превращают CLI presentation или runtime SDK в Core dependency.
+
+### 10.5 Load order и safety
+
+Нормальный load path:
+
+```text
+harness.yaml
+  ↓ exact harness.release + schemaVersion
+ReleaseStore.verify
+  ↓
+CLI compatibility
+  ↓
+Host API compatibility
+  ↓
+project schema compatibility
+  ↓
+entrypoint containment
+  ↓
+import declared core entrypoint
+  ↓
+runtime hostApiVersion check
+  ↓
+execute(request, ports)
+```
+
+До successful verification/compatibility checks executable Core не импортируется.
+
+Host не запускает:
+
+- `npm install`;
+- `preinstall` / `postinstall`;
+- bootstrap scripts;
+- arbitrary hooks;
+- undeclared discovery executables.
+
+Integrity verification не является sandbox для уже доверенного release code: import declared Core — это сама разрешённая executable boundary. Publisher authenticity/provenance остаётся отдельным hardening layer.
 
 ## 11. Integrity model
 
