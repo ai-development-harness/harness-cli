@@ -158,11 +158,14 @@ protocol:
 
 Контракт миграции legacy repository-embedded проектов находится в [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
+Формат Harness Distribution и immutable release находится в [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+
 Текущая последовательность этапа формализации:
 
 1. продуктовые требования — `docs/PRODUCT_REQUIREMENTS.md`;
 2. архитектурный контракт — `docs/ARCHITECTURE.md`;
 3. контракт миграции — `docs/MIGRATION.md`;
-4. после этого — хранилище неизменяемых релизов Harness и resolver закреплённой версии.
+4. формат Harness Distribution — `docs/DISTRIBUTION.md`;
+5. после этого — реализация Release Store и resolver закреплённой версии.
 
 План намеренно **не предполагает обязательного существования GUI**. CLI/Core должен предоставлять переиспользуемые машиночитаемые интерфейсы для редакторских интеграций и других внешних инструментов, не делая какой-либо конкретный клиент обязательной частью архитектуры.
