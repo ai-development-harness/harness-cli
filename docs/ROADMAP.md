@@ -224,9 +224,11 @@ CLI-REQ-002
 
 ## 5. Этап 2 — дистрибутив Harness и хранилище неизменяемых релизов
 
-**Статус: в работе.**
+**Статус: базовая реализация Store/Resolver выполняется в issue #9.**
 
 Формат Harness Distribution и immutable release зафиксирован в `docs/DISTRIBUTION.md` в рамках issue #8.
+
+Issue #9 реализует transport-neutral Release Store, integrity verification и resolver project pin. Download/catalog transports, signatures/provenance, GC и release hardening остаются более поздними задачами.
 
 Нужно ввести отдельное понятие **дистрибутива Harness**, не связывая архитектуру с единственным каналом установки.
 
