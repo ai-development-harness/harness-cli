@@ -1,60 +1,54 @@
 import { access } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { readHarnessConfig } from '../core/config.js';
-import { findGitRoot } from '../core/git.js';
-import { getCloneLocalStatePath, getHarnessGlobalPaths } from '../core/paths.js';
+import path from 'node:path';
+import { readConfig } from '../core/config.js';
+import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { globalHarnessPaths } from '../core/paths.js';
 
-interface CheckResult {
-  name: string;
-  ok: boolean;
-  detail: string;
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function doctorCommand(cwd = process.cwd()): Promise<void> {
-  const checks: CheckResult[] = [];
-  const projectRoot = await findGitRoot(cwd);
-  checks.push({ name: 'git', ok: true, detail: projectRoot });
+export async function doctorCommand(cwd: string): Promise<void> {
+  let failed = false;
 
   try {
-    const config = await readHarnessConfig(projectRoot);
-    checks.push({
-      name: 'harness.yaml',
-      ok: true,
-      detail: `schema ${config.schemaVersion}, release ${config.harness.release}`,
-    });
+    const root = await findGitRoot(cwd);
+    console.log(`✓ Git repository: ${root}`);
 
-    for (const [name, relativePath] of Object.entries({ ...config.sources, ...config.planning })) {
-      const absolutePath = resolve(projectRoot, relativePath);
-      checks.push({ name, ok: await pathExists(absolutePath), detail: relativePath });
+    const config = await readConfig(root);
+    console.log(`✓ harness.yaml: schema ${config.schemaVersion}`);
+    console.log(`✓ Harness release pin: ${config.harness.release}`);
+
+    const requiredDirectories = [
+      config.sources.requirements,
+      config.sources.adrDirectory,
+      config.sources.principles,
+      config.sources.openQuestions,
+      config.protocol.taskDirectory,
+      config.protocol.reviewDirectory,
+      config.protocol.planningReviewDirectory,
+      config.protocol.initReviewDirectory,
+      config.protocol.auditDirectory,
+      config.protocol.releaseDirectory,
+      config.protocol.skillSearchDirectory,
+      path.dirname(config.protocol.skillRegistry),
+    ];
+
+    for (const relativePath of requiredDirectories) {
+      try {
+        await access(path.join(root, relativePath));
+        console.log(`✓ ${relativePath}`);
+      } catch {
+        failed = true;
+        console.error(`✗ missing: ${relativePath}`);
+      }
     }
+
+    const statePath = await harnessStatePath(root);
+    console.log(`✓ Clone-local state: ${statePath}`);
+
+    const globalPaths = globalHarnessPaths();
+    console.log(`✓ Harness data directory: ${globalPaths.data}`);
   } catch (error) {
-    checks.push({
-      name: 'harness.yaml',
-      ok: false,
-      detail: error instanceof Error ? error.message : String(error),
-    });
+    failed = true;
+    console.error(`✗ ${(error as Error).message}`);
   }
 
-  const cloneState = await getCloneLocalStatePath(projectRoot);
-  checks.push({ name: 'clone-local state', ok: await pathExists(cloneState), detail: cloneState });
-
-  const globalPaths = getHarnessGlobalPaths();
-  checks.push({ name: 'global data', ok: await pathExists(globalPaths.data), detail: globalPaths.data });
-
-  for (const check of checks) {
-    console.log(`${check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`);
-  }
-
-  if (checks.some((check) => !check.ok)) {
-    process.exitCode = 1;
-  }
+  if (failed) process.exitCode = 1;
 }

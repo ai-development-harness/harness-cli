@@ -2,60 +2,13 @@
 
 Experimental CLI control plane for [AI Development Harness](https://github.com/ai-development-harness).
 
-The goal is to separate the Harness product from project-owned artifacts. Projects should keep durable knowledge such as requirements, ADRs, STEP files and reviews in Git, while the Harness protocol implementation, validators and core tooling are distributed separately.
+The goal is to separate the Harness product from project-owned artifacts. Projects keep durable knowledge such as requirements, ADRs, STEP files and reviews in Git, while the Harness protocol implementation, validators, core skills and tooling are distributed separately.
 
-## Current scope
+## Architectural boundary
 
-This repository intentionally starts with a narrow, non-runtime slice:
+Harness CLI is **not** a mandatory terminal wrapper around Claude Code or Codex.
 
-- `harness setup` — bootstrap an existing Git repository;
-- `harness doctor` — check prerequisites and expected project paths;
-- `harness validate` — validate `harness.yaml`;
-- `harness status` — show the pinned Harness release and clone-local state path.
-
-It does **not** launch Claude Code or Codex. Runtime interaction remains owned by the runtime so interactive permissions, approvals and questions continue to work normally.
-
-## Development
-
-```bash
-npm install
-npm run typecheck
-npm test
-npm run build
-```
-
-Run locally:
-
-```bash
-npm run dev -- setup
-npm run dev -- doctor
-npm run dev -- validate
-npm run dev -- status
-```
-
-## Example project contract
-
-```yaml
-schemaVersion: 1
-
-harness:
-  release: 0.10.1
-
-project:
-  initialized: false
-
-sources:
-  requirements: docs/requirements
-  adr: docs/adr
-  openQuestions: docs/open-questions
-
-planning:
-  tasks: planning/tasks
-  reviews: planning/reviews
-  audits: planning/audits
-```
-
-## Architecture direction
+Interactive runtime sessions remain owned by the runtime itself, so permission prompts, WebFetch approvals, questions and other TTY interactions continue to work normally. The CLI is responsible for installation, configuration, deterministic validation, migrations and local control-plane services.
 
 ```text
 Claude Code / Codex
@@ -79,4 +32,114 @@ Harness CLI
   └─ migrations
 ```
 
-The CLI is a control-plane and distribution surface, not a mandatory terminal wrapper around AI runtimes.
+## Current scope
+
+This repository intentionally starts with a narrow, non-runtime slice:
+
+- `harness setup` — bootstrap an existing Git repository;
+- `harness doctor` — check prerequisites and expected project paths;
+- `harness validate` — validate `harness.yaml`;
+- `harness status` — show the pinned Harness release and clone-local state path.
+
+It does **not** launch Claude Code or Codex.
+
+## Project vs. Harness-owned state
+
+Tracked project repository:
+
+```text
+harness.yaml
+AGENTS.md
+CLAUDE.md
+docs/
+planning/
+src/
+```
+
+Clone-local operational state is stored through Git's private path resolution:
+
+```text
+.git/ai-harness/
+```
+
+The future installed Harness distribution will own protocol code, validators, core skills, runtime adapters and immutable releases outside the project repository.
+
+## Development
+
+Requires Node.js 20+.
+
+```bash
+npm install
+npm run typecheck
+npm test
+npm run build
+```
+
+Run locally:
+
+```bash
+npm run dev -- setup
+npm run dev -- doctor
+npm run dev -- validate
+npm run dev -- status
+```
+
+## Example project contract
+
+The initial schema mirrors the **project-owned** settings of the current Harness manifest and deliberately excludes embedded control-plane paths such as `.harness/tools/**` and Harness update policies.
+
+```yaml
+schemaVersion: 1
+
+harness:
+  release: 0.10.4
+
+project:
+  initialized: false
+  name: null
+  initializedAt: null
+
+execution:
+  maxFixReviewCycles: 3
+  verificationCommandTimeoutSeconds: 300
+
+review:
+  security: auto
+  tests: auto
+
+skills:
+  search:
+    maxResults: 5
+
+language:
+  default: ru
+
+sources:
+  localBrief: PROJECT_BRIEF.local.md
+  projectOverview: docs/PROJECT.md
+  requirements: docs/requirements
+  adrDirectory: docs/adr
+  principles: docs/principles
+  architecture: docs/architecture.md
+  openQuestions: docs/open-questions
+  openQuestionsIndex: docs/OPEN_QUESTIONS.md
+  roadmap: planning/PLAN.md
+  status: planning/STATUS.md
+
+protocol:
+  taskDirectory: planning/tasks
+  reviewDirectory: planning/reviews
+  planningReviewDirectory: planning/plan-reviews
+  initReviewDirectory: planning/init-reviews
+  auditDirectory: planning/audits
+  releaseDirectory: planning/releases
+  skillSearchDirectory: planning/skill-searches
+  skillRegistry: docs/skills/REGISTRY.md
+```
+
+## Next implementation slices
+
+1. External Harness release store and immutable release resolution.
+2. Migration from repository-embedded Harness projects.
+3. Runtime integration contract that preserves runtime-owned interactive sessions.
+4. Local API/MCP surface shared by CLI, UI and editor integrations.

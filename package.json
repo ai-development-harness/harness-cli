@@ -1,14 +1,13 @@
 {
   "name": "@ai-development-harness/cli",
   "version": "0.1.0",
-  "description": "CLI control plane for AI Development Harness",
+  "description": "CLI control plane for AI Development Harness projects",
   "type": "module",
   "bin": {
     "harness": "dist/cli.js"
   },
   "files": [
-    "dist",
-    "README.md"
+    "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -21,13 +20,25 @@
   },
   "dependencies": {
     "commander": "^14.0.1",
+    "env-paths": "^3.0.0",
     "yaml": "^2.8.1",
-    "zod": "^3.25.76"
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/node": "^24.7.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ai-development-harness/harness-cli.git"
+  },
+  "homepage": "https://github.com/ai-development-harness/harness-cli#readme",
+  "bugs": {
+    "url": "https://github.com/ai-development-harness/harness-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,65 +1,80 @@
-import { access, mkdir, writeFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
-import { resolve } from 'node:path';
-import { DEFAULT_HARNESS_CONFIG, writeHarnessConfig } from '../core/config.js';
-import { findGitRoot } from '../core/git.js';
-import { ensureCloneLocalStatePath, ensureGlobalHarnessPaths } from '../core/paths.js';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { DEFAULT_CONFIG, configPath, writeConfig } from '../core/config.js';
+import { findGitRoot, harnessStatePath } from '../core/git.js';
 
-const AGENTS_BOOTSTRAP = `# AI Development Harness\n\nThis project uses AI Development Harness.\n\nProject configuration: \`harness.yaml\`.\nProject-specific requirements, ADRs, STEP files and review evidence remain in this repository.\nHarness core tooling is distributed separately by the Harness CLI.\n`;
-
-const CLAUDE_BOOTSTRAP = `@AGENTS.md\n`;
-
-async function exists(path: string): Promise<boolean> {
+async function exists(filePath: string): Promise<boolean> {
   try {
-    await access(path, constants.F_OK);
+    await access(filePath);
     return true;
   } catch {
     return false;
   }
 }
 
-async function writeIfMissing(path: string, content: string): Promise<boolean> {
-  if (await exists(path)) {
-    return false;
-  }
-  await writeFile(path, content, { encoding: 'utf8', flag: 'wx' });
-  return true;
+async function ensureGitignoreEntry(projectRoot: string, entry: string): Promise<void> {
+  const gitignorePath = path.join(projectRoot, '.gitignore');
+  const current = (await exists(gitignorePath)) ? await readFile(gitignorePath, 'utf8') : '';
+  const lines = current.split(/\r?\n/).map((line) => line.trim());
+
+  if (lines.includes(entry)) return;
+
+  const prefix = current.length > 0 && !current.endsWith('\n') ? '\n' : '';
+  await writeFile(gitignorePath, `${current}${prefix}${entry}\n`, 'utf8');
 }
 
-export async function setupCommand(cwd = process.cwd()): Promise<void> {
-  const projectRoot = await findGitRoot(cwd);
-  const configPath = resolve(projectRoot, 'harness.yaml');
+const AGENTS_BOOTSTRAP = `# AI Development Harness\n\nThis project uses AI Development Harness.\nProject configuration: \`harness.yaml\`.\nUse the installed Harness integration for Harness protocol commands.\n`;
 
-  const created: string[] = [];
+const CLAUDE_BOOTSTRAP = `# AI Development Harness\n\nThis project uses AI Development Harness.\nProject configuration: \`harness.yaml\`.\nUse the installed Harness integration for Harness protocol commands.\n`;
 
-  if (!(await exists(configPath))) {
-    await writeHarnessConfig(projectRoot, DEFAULT_HARNESS_CONFIG);
-    created.push('harness.yaml');
+export async function setupCommand(cwd: string): Promise<void> {
+  const root = await findGitRoot(cwd);
+  const targetConfig = configPath(root);
+
+  if (await exists(targetConfig)) {
+    throw new Error(`Harness is already configured: ${targetConfig}`);
   }
 
-  for (const directory of [
-    DEFAULT_HARNESS_CONFIG.sources.requirements,
-    DEFAULT_HARNESS_CONFIG.sources.adr,
-    DEFAULT_HARNESS_CONFIG.sources.openQuestions,
-    DEFAULT_HARNESS_CONFIG.planning.tasks,
-    DEFAULT_HARNESS_CONFIG.planning.reviews,
-    DEFAULT_HARNESS_CONFIG.planning.audits,
-  ]) {
-    await mkdir(resolve(projectRoot, directory), { recursive: true });
+  await writeConfig(root, DEFAULT_CONFIG);
+
+  const directories = [
+    DEFAULT_CONFIG.sources.requirements,
+    DEFAULT_CONFIG.sources.adrDirectory,
+    DEFAULT_CONFIG.sources.principles,
+    DEFAULT_CONFIG.sources.openQuestions,
+    path.dirname(DEFAULT_CONFIG.protocol.skillRegistry),
+    DEFAULT_CONFIG.protocol.taskDirectory,
+    DEFAULT_CONFIG.protocol.reviewDirectory,
+    DEFAULT_CONFIG.protocol.planningReviewDirectory,
+    DEFAULT_CONFIG.protocol.initReviewDirectory,
+    DEFAULT_CONFIG.protocol.auditDirectory,
+    DEFAULT_CONFIG.protocol.releaseDirectory,
+    DEFAULT_CONFIG.protocol.skillSearchDirectory,
+  ];
+
+  await Promise.all(directories.map((entry) => mkdir(path.join(root, entry), { recursive: true })));
+
+  const statePath = await harnessStatePath(root);
+  await mkdir(statePath, { recursive: true });
+
+  await ensureGitignoreEntry(root, DEFAULT_CONFIG.sources.localBrief);
+
+  const agentsPath = path.join(root, 'AGENTS.md');
+  if (!(await exists(agentsPath))) {
+    await writeFile(agentsPath, AGENTS_BOOTSTRAP, 'utf8');
+  } else {
+    console.warn('AGENTS.md already exists; left unchanged.');
   }
 
-  if (await writeIfMissing(resolve(projectRoot, 'AGENTS.md'), AGENTS_BOOTSTRAP)) {
-    created.push('AGENTS.md');
-  }
-  if (await writeIfMissing(resolve(projectRoot, 'CLAUDE.md'), CLAUDE_BOOTSTRAP)) {
-    created.push('CLAUDE.md');
+  const claudePath = path.join(root, 'CLAUDE.md');
+  if (!(await exists(claudePath))) {
+    await writeFile(claudePath, CLAUDE_BOOTSTRAP, 'utf8');
+  } else {
+    console.warn('CLAUDE.md already exists; left unchanged.');
   }
 
-  const cloneState = await ensureCloneLocalStatePath(projectRoot);
-  const globalPaths = await ensureGlobalHarnessPaths();
-
-  console.log(`Harness project: ${projectRoot}`);
-  console.log(created.length > 0 ? `Created: ${created.join(', ')}` : 'Bootstrap files already exist.');
-  console.log(`Clone-local state: ${cloneState}`);
-  console.log(`Harness data: ${globalPaths.data}`);
+  console.log(`Harness configured in ${root}`);
+  console.log(`Pinned Harness release: ${DEFAULT_CONFIG.harness.release}`);
+  console.log(`Clone-local state: ${statePath}`);
+  console.log('Runtime execution is intentionally not implemented in this first slice.');
 }

@@ -1,37 +1,20 @@
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-export class GitError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
-    super(message);
-    this.name = 'GitError';
-  }
-}
-
-async function runGit(args: string[], cwd: string): Promise<string> {
+export async function findGitRoot(cwd: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd,
-      encoding: 'utf8',
-      windowsHide: true,
-    });
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd });
     return stdout.trim();
-  } catch (error) {
-    throw new GitError(`git ${args.join(' ')} failed in ${cwd}`, error);
+  } catch {
+    throw new Error('Current directory is not inside a Git repository.');
   }
 }
 
-export async function findGitRoot(cwd = process.cwd()): Promise<string> {
-  return runGit(['rev-parse', '--show-toplevel'], cwd);
-}
-
-export async function resolveGitPath(projectRoot: string, path: string): Promise<string> {
-  return runGit(['rev-parse', '--path-format=absolute', '--git-path', path], projectRoot);
-}
-
-export async function getCurrentBranch(projectRoot: string): Promise<string | null> {
-  const branch = await runGit(['branch', '--show-current'], projectRoot);
-  return branch || null;
+export async function harnessStatePath(projectRoot: string): Promise<string> {
+  const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot });
+  const gitPath = stdout.trim();
+  return path.isAbsolute(gitPath) ? gitPath : path.resolve(projectRoot, gitPath);
 }

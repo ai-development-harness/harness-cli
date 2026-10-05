@@ -1,85 +1,135 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { parse, stringify } from 'yaml';
+import path from 'node:path';
+import YAML from 'yaml';
 import { z } from 'zod';
 
-const relativeProjectPath = z
-  .string()
-  .min(1)
-  .refine((value) => !value.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(value), {
-    message: 'Expected a project-relative path',
-  });
+const languageSchema = z.string().min(2);
 
-export const HarnessConfigSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    harness: z
-      .object({
-        release: z.string().min(1),
-      })
-      .strict(),
-    project: z
-      .object({
-        initialized: z.boolean(),
-      })
-      .strict(),
-    sources: z
-      .object({
-        requirements: relativeProjectPath,
-        adr: relativeProjectPath,
-        openQuestions: relativeProjectPath,
-      })
-      .strict(),
-    planning: z
-      .object({
-        tasks: relativeProjectPath,
-        reviews: relativeProjectPath,
-        audits: relativeProjectPath,
-      })
-      .strict(),
-  })
-  .strict();
+export const harnessConfigSchema = z.object({
+  schemaVersion: z.literal(1),
+  harness: z.object({
+    release: z.string().regex(/^\d+\.\d+\.\d+$/, 'Expected semantic version X.Y.Z'),
+  }),
+  project: z.object({
+    initialized: z.boolean().default(false),
+    name: z.string().min(1).nullable().default(null),
+    initializedAt: z.string().min(1).nullable().default(null),
+  }),
+  execution: z.object({
+    maxFixReviewCycles: z.number().int().min(1).max(5).default(3),
+    verificationCommandTimeoutSeconds: z.number().int().min(1).max(3600).default(300),
+  }),
+  review: z.object({
+    security: z.enum(['auto', 'always']).default('auto'),
+    tests: z.enum(['auto', 'always']).default('auto'),
+  }),
+  skills: z.object({
+    search: z.object({
+      maxResults: z.number().int().min(1).max(10).default(5),
+    }),
+  }),
+  language: z.object({
+    default: languageSchema.default('ru'),
+    agentResponses: languageSchema.optional(),
+    documentation: languageSchema.optional(),
+    commitMessages: languageSchema.optional(),
+    codeComments: languageSchema.optional(),
+    testNames: languageSchema.optional(),
+    fixtures: languageSchema.optional(),
+    githubTemplates: languageSchema.optional(),
+    releaseNotes: languageSchema.optional(),
+  }),
+  sources: z.object({
+    localBrief: z.string().default('PROJECT_BRIEF.local.md'),
+    projectOverview: z.string().default('docs/PROJECT.md'),
+    requirements: z.string().default('docs/requirements'),
+    adrDirectory: z.string().default('docs/adr'),
+    principles: z.string().default('docs/principles'),
+    architecture: z.string().default('docs/architecture.md'),
+    openQuestions: z.string().default('docs/open-questions'),
+    openQuestionsIndex: z.string().default('docs/OPEN_QUESTIONS.md'),
+    roadmap: z.string().default('planning/PLAN.md'),
+    status: z.string().default('planning/STATUS.md'),
+  }),
+  protocol: z.object({
+    taskDirectory: z.string().default('planning/tasks'),
+    reviewDirectory: z.string().default('planning/reviews'),
+    planningReviewDirectory: z.string().default('planning/plan-reviews'),
+    initReviewDirectory: z.string().default('planning/init-reviews'),
+    auditDirectory: z.string().default('planning/audits'),
+    releaseDirectory: z.string().default('planning/releases'),
+    skillSearchDirectory: z.string().default('planning/skill-searches'),
+    skillRegistry: z.string().default('docs/skills/REGISTRY.md'),
+  }),
+});
 
-export type HarnessConfig = z.infer<typeof HarnessConfigSchema>;
+export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 
-export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
+export const DEFAULT_CONFIG: HarnessConfig = {
   schemaVersion: 1,
-  harness: {
-    release: '0.10.1',
-  },
+  harness: { release: '0.10.4' },
   project: {
     initialized: false,
+    name: null,
+    initializedAt: null,
+  },
+  execution: {
+    maxFixReviewCycles: 3,
+    verificationCommandTimeoutSeconds: 300,
+  },
+  review: {
+    security: 'auto',
+    tests: 'auto',
+  },
+  skills: {
+    search: {
+      maxResults: 5,
+    },
+  },
+  language: {
+    default: 'ru',
+    agentResponses: 'ru',
+    documentation: 'ru',
+    commitMessages: 'ru',
+    codeComments: 'ru',
+    testNames: 'ru',
+    fixtures: 'ru',
+    githubTemplates: 'ru',
+    releaseNotes: 'ru',
   },
   sources: {
+    localBrief: 'PROJECT_BRIEF.local.md',
+    projectOverview: 'docs/PROJECT.md',
     requirements: 'docs/requirements',
-    adr: 'docs/adr',
+    adrDirectory: 'docs/adr',
+    principles: 'docs/principles',
+    architecture: 'docs/architecture.md',
     openQuestions: 'docs/open-questions',
+    openQuestionsIndex: 'docs/OPEN_QUESTIONS.md',
+    roadmap: 'planning/PLAN.md',
+    status: 'planning/STATUS.md',
   },
-  planning: {
-    tasks: 'planning/tasks',
-    reviews: 'planning/reviews',
-    audits: 'planning/audits',
+  protocol: {
+    taskDirectory: 'planning/tasks',
+    reviewDirectory: 'planning/reviews',
+    planningReviewDirectory: 'planning/plan-reviews',
+    initReviewDirectory: 'planning/init-reviews',
+    auditDirectory: 'planning/audits',
+    releaseDirectory: 'planning/releases',
+    skillSearchDirectory: 'planning/skill-searches',
+    skillRegistry: 'docs/skills/REGISTRY.md',
   },
 };
 
-export function parseHarnessConfig(source: string): HarnessConfig {
-  return HarnessConfigSchema.parse(parse(source));
+export function configPath(projectRoot: string): string {
+  return path.join(projectRoot, 'harness.yaml');
 }
 
-export function serializeHarnessConfig(config: HarnessConfig): string {
-  return stringify(config, { indent: 2, lineWidth: 0 });
+export async function readConfig(projectRoot: string): Promise<HarnessConfig> {
+  const raw = await readFile(configPath(projectRoot), 'utf8');
+  return harnessConfigSchema.parse(YAML.parse(raw));
 }
 
-export async function readHarnessConfig(projectRoot: string): Promise<HarnessConfig> {
-  const path = resolve(projectRoot, 'harness.yaml');
-  const source = await readFile(path, 'utf8');
-  return parseHarnessConfig(source);
-}
-
-export async function writeHarnessConfig(
-  projectRoot: string,
-  config: HarnessConfig = DEFAULT_HARNESS_CONFIG,
-): Promise<void> {
-  const path = resolve(projectRoot, 'harness.yaml');
-  await writeFile(path, serializeHarnessConfig(config), { encoding: 'utf8', flag: 'wx' });
+export async function writeConfig(projectRoot: string, config: HarnessConfig): Promise<void> {
+  await writeFile(configPath(projectRoot), YAML.stringify(config), 'utf8');
 }
