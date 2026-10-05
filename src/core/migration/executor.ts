@@ -253,7 +253,6 @@ async function assertTargetRelease(plan: MigrationPlan, dependencies: MigrationE
 
 async function assertInitialPreconditions(plan: MigrationPlan, projectRoot: string): Promise<void> {
   for (const operation of plan.operations) {
-    if (!operation.mutates) continue;
     await assertOperationPrecondition(projectRoot, operation);
   }
 }
@@ -346,6 +345,15 @@ async function executePendingOperation(
 ): Promise<void> {
   try {
     await assertOperationPrecondition(projectRoot, operation);
+  } catch (error) {
+    if (error instanceof MigrationExecutionError) {
+      await markRecoveryRequired(checkpoint, error, operation.id, dependencies);
+    }
+    throw error;
+  }
+
+  try {
+    await handler.preflight?.(operationContext(checkpoint, operation, projectRoot));
   } catch (error) {
     if (error instanceof MigrationExecutionError) {
       await markRecoveryRequired(checkpoint, error, operation.id, dependencies);
