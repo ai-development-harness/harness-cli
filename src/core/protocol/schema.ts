@@ -291,7 +291,7 @@ export const protocolModelSchema = z
 
       const edges = new Set<string>();
       domain.transitions.forEach((transition, index) => {
-        const edgePath = ['domains', domainName, 'transitions', index] as const;
+        const edgePath: PropertyKey[] = ['domains', domainName, 'transitions', index];
         const source = commands[transition.from];
         const target = commands[transition.to];
 
