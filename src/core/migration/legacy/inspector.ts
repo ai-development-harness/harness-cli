@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readFile, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import YAML from 'yaml';
@@ -60,7 +60,7 @@ async function git(cwd: string, args: readonly string[]): Promise<string> {
 
 async function tryFindGitRoot(cwd: string): Promise<string | null> {
   try {
-    return (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
+    return await realpath((await git(cwd, ['rev-parse', '--show-toplevel'])).trim());
   } catch {
     return null;
   }
