@@ -7,7 +7,7 @@ import { harnessStatePath } from '../git.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
 import { atomicWriteText } from './checkpoint.js';
-import { executeMigration } from './executor.js';
+import { executeMigration, resumeMigration } from './executor.js';
 import type {
   MigrationExecutionResult,
   MigrationExecutorDependencies,
@@ -550,6 +550,27 @@ export async function executeLegacyThinMigration(
   if (finalInspection.state !== 'thin-harness-current') {
     throw new Error(
       `Migration completed but final project state is ${finalInspection.state}, expected thin-harness-current.`,
+    );
+  }
+  return result;
+}
+
+
+export async function resumeLegacyThinMigration(
+  projectRoot: string,
+  migrationId: string,
+  dependencies: MigrationExecutorDependencies = {},
+): Promise<MigrationExecutionResult> {
+  const store = dependencies.releaseStore ?? new ReleaseStore();
+  const result = await resumeMigration(projectRoot, migrationId, {
+    ...dependencies,
+    releaseStore: store,
+    handlers: { ...legacyThinOperationHandlers(store), ...(dependencies.handlers ?? {}) },
+  });
+  const finalInspection = await inspectProject(projectRoot);
+  if (finalInspection.state !== 'thin-harness-current') {
+    throw new Error(
+      `Migration resumed but final project state is ${finalInspection.state}, expected thin-harness-current.`,
     );
   }
   return result;
