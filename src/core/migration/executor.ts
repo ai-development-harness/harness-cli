@@ -562,8 +562,11 @@ export async function executeMigration(
     // Re-check all mutation-sensitive facts only after exclusive ownership.
     await assertProjectIdentity(plan);
     await assertTargetRelease(plan, dependencies);
-    await dependencies.beforeCheckpoint?.(plan, projectRoot);
+    // Durable unfinished checkpoints outrank saved-plan/domain validation:
+    // recovery state must be resolved before another migration interprets a
+    // partially mutated worktree.
     await assertNoConflictingCheckpoint(projectRoot, plan.migrationId);
+    await dependencies.beforeCheckpoint?.(plan, projectRoot);
     await assertInitialPreconditions(plan, projectRoot);
 
     const checkpoint = await createMigrationCheckpoint(
