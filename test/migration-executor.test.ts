@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { harnessStatePath } from '../src/core/git.js';
+import { harnessStatePath, resolveHarnessStatePath } from '../src/core/git.js';
 import {
   executeMigration,
   inspectMigrationCheckpoint,
@@ -572,6 +572,45 @@ describe('MigrationExecutor', () => {
       details: {
         migrationId: secondPlan.migrationId,
         existingMigrationIds: expect.arrayContaining([firstPlan.migrationId]),
+      },
+    });
+  });
+
+  it('fails closed when resume sees another unfinished checkpoint in the same worktree', async () => {
+    const { base, repo } = await createRepository();
+    const { store, digest } = await installedStore(base);
+    const plan = await makePlan(repo, digest);
+    const counters = new Map<string, number>();
+
+    await expect(
+      executeMigration(plan, {
+        releaseStore: store,
+        handlers: handlers(counters),
+        hooks: {
+          afterOperationVerified(operation) {
+            if (operation.id === 'op-0001') throw new Error('interrupt-for-ambiguous-resume');
+          },
+        },
+      }),
+    ).rejects.toThrow('interrupt-for-ambiguous-resume');
+
+    const conflicting = await resolveHarnessStatePath(
+      repo,
+      'migrations/migration-conflicting-checkpoint',
+      'test conflicting migration checkpoint',
+    );
+    await mkdir(conflicting, { recursive: true });
+
+    await expect(
+      resumeMigration(repo, plan.migrationId, {
+        releaseStore: store,
+        handlers: handlers(new Map<string, number>()),
+      }),
+    ).rejects.toMatchObject({
+      code: 'MIGRATION_CHECKPOINT_EXISTS',
+      details: {
+        migrationId: plan.migrationId,
+        conflictingMigrationIds: ['migration-conflicting-checkpoint'],
       },
     });
   });
