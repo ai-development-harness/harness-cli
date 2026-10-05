@@ -320,9 +320,10 @@ describe('migration CLI end-to-end', () => {
     const planPath = path.join(base, 'tampered-plan.json');
     expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
 
-    const plan = JSON.parse(await readFile(planPath, 'utf8')) as {
-      operations: Array<{ kind: string; targetPath?: string }>;
+    const originalPlan = JSON.parse(await readFile(planPath, 'utf8')) as {
+      operations: Array<{ id: string; kind: string; phase: string; path: string; targetPath?: string }>;
     };
+    const plan = structuredClone(originalPlan);
     const transform = plan.operations.find((operation) => operation.kind === 'TRANSFORM');
     expect(transform).toBeDefined();
     transform!.targetPath = 'CUSTOM.md';
@@ -337,10 +338,25 @@ describe('migration CLI end-to-end', () => {
     });
     expect(await readFile(path.join(repo, 'CUSTOM.md'), 'utf8')).toBe(customBefore);
 
+    const reordered = structuredClone(originalPlan);
+    const cleanupIndex = reordered.operations.findIndex(
+      (operation) => operation.kind === 'DELETE_HARNESS_OWNED_CLEAN',
+    );
+    expect(cleanupIndex).toBeGreaterThan(0);
+    const [cleanup] = reordered.operations.splice(cleanupIndex, 1);
+    reordered.operations.unshift(cleanup);
+    await writeFile(planPath, `${JSON.stringify(reordered, null, 2)}\n`, 'utf8');
+
+    const reorderedApply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(reorderedApply.code).toBe(1);
+    expect(jsonOutput(reorderedApply).error.message).toContain(
+      'operation order/id is inconsistent',
+    );
+
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(status.code).toBe(0);
     expect(jsonOutput(status).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('rejects unsafe migration ids before resolving checkpoint paths', async () => {
     const { repo, env } = await fixture();
