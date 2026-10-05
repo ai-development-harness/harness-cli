@@ -166,11 +166,18 @@ describe('migration CLI end-to-end', () => {
   it('supports explicit baseline adoption when the legacy lock is absent', async () => {
     const { base, repo, env } = await fixture({ withLock: false });
 
-    const blocked = await runCli(repo, ['migrate', 'plan', '--json'], env);
+    const blockedPlanPath = path.join(base, 'blocked-plan.json');
+    const blocked = await runCli(
+      repo,
+      ['migrate', 'plan', '--out', blockedPlanPath, '--json'],
+      env,
+    );
     expect(blocked.code).toBe(2);
+    expect(jsonOutput(blocked)).toMatchObject({ ok: false, status: 'blocked', savedPlan: null });
     expect(jsonOutput(blocked).plan.blockers).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'BASELINE_REQUIRED' })]),
     );
+    await expect(readFile(blockedPlanPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
 
     const planPath = path.join(base, 'explicit-plan.json');
     const adopted = await runCli(
@@ -264,6 +271,33 @@ describe('migration CLI end-to-end', () => {
     const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
     expect(apply.code).toBe(1);
     expect(jsonOutput(apply).error.code).toBe('PLAN_STALE');
+
+    const status = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(status.code).toBe(0);
+    expect(jsonOutput(status).checkpoints).toEqual([]);
+  });
+
+  it('rejects a tampered saved plan before checkpoint or project mutation', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'tampered-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const plan = JSON.parse(await readFile(planPath, 'utf8')) as {
+      operations: Array<{ kind: string; targetPath?: string }>;
+    };
+    const transform = plan.operations.find((operation) => operation.kind === 'TRANSFORM');
+    expect(transform).toBeDefined();
+    transform!.targetPath = 'CUSTOM.md';
+    await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`, 'utf8');
+
+    const customBefore = await readFile(path.join(repo, 'CUSTOM.md'), 'utf8');
+    const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(apply.code).toBe(1);
+    expect(jsonOutput(apply).error).toMatchObject({
+      code: 'MIGRATION_ERROR',
+      message: expect.stringContaining('Unsupported prepared TRANSFORM operation'),
+    });
+    expect(await readFile(path.join(repo, 'CUSTOM.md'), 'utf8')).toBe(customBefore);
 
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(status.code).toBe(0);
