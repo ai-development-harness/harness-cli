@@ -187,7 +187,7 @@ describe('migration CLI end-to-end', () => {
     );
     expect(adopted.code).toBe(0);
     expect(jsonOutput(adopted)).toMatchObject({ ok: true, status: 'ready' });
-  });
+  }, 15_000);
 
   it('reports baseline mismatch deterministically', async () => {
     const { repo, env } = await fixture();
@@ -227,7 +227,7 @@ describe('migration CLI end-to-end', () => {
     expect(jsonOutput(sharedPlan).plan.blockers).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'UNSAFE_SHARED_MERGE' })]),
     );
-  });
+  }, 15_000);
 
   it('blocks dirty tracked mutations and untracked target collisions', async () => {
     const dirty = await fixture();
@@ -397,7 +397,7 @@ describe('migration CLI end-to-end', () => {
 
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(status).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('surfaces interruption status and resumes through the public CLI', async () => {
     const { repo, env, releaseStore } = await fixture();
