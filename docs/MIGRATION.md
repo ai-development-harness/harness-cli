@@ -641,6 +641,48 @@ Final verification выполняется до PASS report и проверяет
 
 Durable report создаётся последней project mutation только после PASS deterministic verification. Повторный запуск уже мигрированного проекта возвращает `already-migrated` и zero mutation.
 
+## 20.3 Public migration CLI и compatibility matrix
+
+Issue #19 фиксирует публичный surface:
+
+```text
+harness migrate inspect
+harness migrate plan [--from <release>] [--target-release <release>] [--out <file>]
+harness migrate apply --plan <file>
+harness migrate status [migration-id]
+harness migrate resume <migration-id>
+```
+
+Все команды поддерживают `--json`.
+
+Инварианты CLI:
+
+- `inspect` и `plan` без `--out` read-only;
+- `plan --out` сохраняет exact prepared plan только по явному запросу пользователя;
+- blocked plan не сохраняется как executable Apply input;
+- `apply` не запускает Planner и не пересчитывает ownership/baseline decisions;
+- перед Apply prepared descriptors, project identity, HEAD, operation preconditions и target release digest проверяются повторно;
+- `status` читает checkpoint fail-closed и способен показать corrupt/recovery-required state без mutation;
+- `resume` использует immutable `plan.json` из checkpoint и domain handlers той же versioned migration.
+
+Exit codes migration CLI:
+
+- `0` — команда выполнена / dry-run ready / informational status;
+- `1` — execution, parsing, corruption или иной command error;
+- `2` — корректно построенный migration plan заблокирован safety/preflight условиями.
+
+### Compatibility matrix
+
+| Legacy release | Baseline descriptor | Automatic thin migration | Статус |
+| --- | --- | --- | --- |
+| `0.10.4` | immutable `v0.10.4@6832c41...` | да | supported |
+| `< 0.10.4` | отсутствует | нет | `UNSUPPORTED_LEGACY_RELEASE` |
+| `> 0.10.4` repository-embedded | отдельный descriptor пока отсутствует | нет | unsupported до явной реализации |
+
+На текущем этапе earliest supported и current repository-embedded baseline совпадают: `0.10.4`. Intermediate supported release отсутствует, поэтому regression suite не создаёт фиктивные compatibility claims.
+
+E2E matrix покрывает clean migration, explicit baseline adoption, mismatch, modified Harness-owned/shared paths, project skill preservation, dirty/untracked conflicts, interruption/resume, stale plan, corrupt checkpoint, active execution, idempotency и Git worktree. CI выполняет suite на Linux, macOS и Windows; portable paths дополнительно проверяются независимо от host separator.
+
 ## 21. Checkpoint и interruption safety
 
 Перед первой mutation engine создаёт clone-local checkpoint:
