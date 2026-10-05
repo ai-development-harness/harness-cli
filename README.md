@@ -48,7 +48,17 @@ Harness CLI
 - `harness setup` — подготовить существующий Git-репозиторий для Harness;
 - `harness doctor` — проверить окружение и ожидаемую структуру проекта;
 - `harness validate` — проверить `harness.yaml`;
-- `harness status` — показать закреплённый релиз Harness и путь к локальному состоянию конкретного clone/worktree.
+- `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree.
+
+В Core также реализованы:
+
+- immutable Harness Release Store в platform-aware global storage;
+- установка проверенного release tree из локального directory source;
+- проверка `release.json` и SHA-256 всего payload;
+- список установленных releases;
+- Release Resolver для project pin с проверкой CLI/Host API/project schema compatibility.
+
+`doctor` и `status` используют общий Release Resolver и не выполняют silent fallback на другую версию.
 
 CLI **не запускает Claude Code или Codex**.
 
