@@ -119,6 +119,29 @@ Application service координирует Core-компоненты, но н�
 
 Связанные требования: `CLI-REQ-020`–`CLI-REQ-039`.
 
+### 4.3.1 Artifact Contract Module
+
+Deterministic parser/validator project-owned artifacts реализован в `src/core/artifacts/`.
+
+Он владеет:
+
+- canonical REQ/ADR/STEP/OQ/PRN structural contracts;
+- shared Markdown/frontmatter parsing boundary;
+- configured-path artifact discovery;
+- cross-reference / reciprocal traceability validation;
+- STEP dependency и ADR supersession cycle detection;
+- structural durable report contracts;
+- typed diagnostics DTO;
+- exclusive-create primitive для immutable report history.
+
+Artifact topology берётся из `HarnessConfig`; отдельного parser/default topology в этом module нет. Configured paths проходят общий path-boundary layer.
+
+Planning freshness, project-state projections, execution semantics и review convergence не входят в этот module.
+
+Нормативное описание: `docs/ARTIFACT_CONTRACTS.md`.
+
+Связанные требования: `CLI-REQ-002`, `CLI-REQ-003`, `CLI-REQ-036`–`CLI-REQ-039`, `CLI-REQ-084`–`CLI-REQ-086`, `CLI-REQ-201`, `CLI-REQ-240`–`CLI-REQ-254`.
+
 ### 4.4 Storage Module
 
 Отвечает за три независимых класса storage:
