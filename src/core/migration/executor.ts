@@ -319,8 +319,9 @@ async function recoverAppliedOperation(
   projectRoot: string,
   dependencies: MigrationExecutorDependencies,
 ): Promise<void> {
-  if (journalOperation.postcondition === null) {
-    await markRecoveryRequired(
+  const postcondition = journalOperation.postcondition;
+  if (postcondition === null) {
+    return markRecoveryRequired(
       checkpoint,
       new MigrationExecutionError('JOURNAL_INCONSISTENT', 'Applied operation has no saved postcondition.', {
         operationId: operation.id,
@@ -331,7 +332,7 @@ async function recoverAppliedOperation(
   }
   const ok = await handler.verify(
     operationContext(checkpoint, operation, projectRoot),
-    journalOperation.postcondition,
+    postcondition,
   );
   if (!ok) {
     await markRecoveryRequired(
@@ -373,7 +374,7 @@ async function executePendingOperation(
   try {
     postcondition = await handler.apply(operationContext(checkpoint, operation, projectRoot));
   } catch (error) {
-    await markRecoveryRequired(
+    return markRecoveryRequired(
       checkpoint,
       new MigrationExecutionError(
         'OPERATION_INDETERMINATE',
