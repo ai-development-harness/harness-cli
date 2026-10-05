@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import YAML from 'yaml';
 import { readConfig } from '../../config.js';
 import { harnessStatePath } from '../../git.js';
+import { resolvePortablePathWithinBoundary } from '../../path-boundary.js';
 import type {
   LegacyBaselineResolution,
   LegacyFileOwnership,
@@ -504,7 +505,11 @@ function relevantUntrackedPaths(
 }
 
 async function hasMigrationCheckpoint(cloneLocalHarnessPath: string): Promise<boolean> {
-  const migrationsPath = path.join(cloneLocalHarnessPath, 'migrations');
+  const migrationsPath = await resolvePortablePathWithinBoundary(
+    cloneLocalHarnessPath,
+    'migrations',
+    'migration checkpoint inventory',
+  );
   try {
     const entries = await readdir(migrationsPath, { withFileTypes: true });
     return entries.some((entry) => entry.isDirectory());
@@ -544,10 +549,17 @@ export async function inspectProject(
     harnessStatePath(root),
   ]);
   const migrationInProgress = await hasMigrationCheckpoint(cloneLocalHarnessPath);
-  const legacyManifestPath = path.join(root, '.harness', 'manifest.yaml');
-  const legacyLockPath = path.join(root, '.harness', 'harness.lock.json');
-  const legacyUpdatePolicyPath = path.join(root, '.harness', 'harness-update.toml');
-  const thinConfigPath = path.join(root, 'harness.yaml');
+  const [
+    legacyManifestPath,
+    legacyLockPath,
+    legacyUpdatePolicyPath,
+    thinConfigPath,
+  ] = await Promise.all([
+    resolvePortablePathWithinBoundary(root, '.harness/manifest.yaml', 'legacy manifest'),
+    resolvePortablePathWithinBoundary(root, '.harness/harness.lock.json', 'legacy lock'),
+    resolvePortablePathWithinBoundary(root, '.harness/harness-update.toml', 'legacy update policy'),
+    resolvePortablePathWithinBoundary(root, 'harness.yaml', 'thin Harness config'),
+  ]);
   const [manifestRaw, lockRaw, updatePolicyRaw, thinConfigPresent] = await Promise.all([
     readOptionalText(legacyManifestPath),
     readOptionalText(legacyLockPath),
