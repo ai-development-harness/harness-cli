@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
-import { harnessStatePath } from '../git.js';
+import { harnessStatePath, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
 import { atomicWriteText } from './checkpoint.js';
@@ -28,11 +28,6 @@ const SKILL_ROUTING_END = '<!-- SKILL-ROUTING:END -->';
 
 function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
-}
-
-function gitBlobSha1(value: Uint8Array): string {
-  const prefix = Buffer.from(`blob ${value.byteLength}\0`, 'utf8');
-  return createHash('sha1').update(prefix).update(value).digest('hex');
 }
 
 function safeProjectPath(projectRoot: string, portablePath: string): string {
@@ -65,15 +60,6 @@ async function exists(target: string): Promise<boolean> {
 async function fileSha256(target: string): Promise<string | null> {
   try {
     return sha256(await readFile(target));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
-async function workingTreeBlobSha1(projectRoot: string, portablePath: string): Promise<string | null> {
-  try {
-    return gitBlobSha1(await readFile(safeProjectPath(projectRoot, portablePath)));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
@@ -411,7 +397,7 @@ async function verifyPreservedPaths(plan: MigrationPlan): Promise<string[]> {
   for (const operation of plan.operations) {
     if (operation.kind !== 'PRESERVE') continue;
     if (operation.precondition.kind === 'git-blob-sha1') {
-      const actual = await workingTreeBlobSha1(plan.source.projectRoot, operation.path);
+      const actual = await trackedWorkingTreeBlobSha1(plan.source.projectRoot, operation.path);
       if (actual !== operation.precondition.value) failures.push(operation.path);
     } else if (!(await exists(safeProjectPath(plan.source.projectRoot, operation.path)))) {
       failures.push(operation.path);
