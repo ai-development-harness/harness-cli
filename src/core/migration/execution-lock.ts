@@ -26,10 +26,17 @@ export type MigrationExecutionLockStatus =
       path: string;
     }
   | {
-      state: 'active' | 'stale';
+      state: 'active';
       path: string;
       owner: MigrationExecutionLockOwner;
-      reason: 'process-alive' | 'process-missing' | 'foreign-host';
+      reason: 'process-alive' | 'foreign-host';
+      recoveryClaimPresent: boolean;
+    }
+  | {
+      state: 'stale';
+      path: string;
+      owner: MigrationExecutionLockOwner;
+      reason: 'process-missing';
       recoveryClaimPresent: boolean;
     }
   | {
@@ -164,7 +171,9 @@ async function exclusiveWriteRecord(
 function ownerState(
   owner: MigrationExecutionLockOwner,
   dependencies: MigrationExecutionLockDependencies,
-): { state: 'active' | 'stale'; reason: 'process-alive' | 'process-missing' | 'foreign-host' } {
+):
+  | { state: 'active'; reason: 'process-alive' | 'foreign-host' }
+  | { state: 'stale'; reason: 'process-missing' } {
   if (owner.hostname !== host(dependencies)) {
     // Cross-host process liveness cannot be proven portably. Fail closed.
     return { state: 'active', reason: 'foreign-host' };
@@ -360,7 +369,7 @@ async function takeOverStaleLock(
   const claimPath = await acquireReclaimClaim(projectRoot, staleStatus.owner, dependencies);
   try {
     const claimOwner = await readOwner(claimPath);
-    if (claimOwner?.ownerId !== staleStatus.owner.ownerId) {
+    if (claimOwner === null || claimOwner.ownerId !== staleStatus.owner.ownerId) {
       throw new MigrationExecutionError(
         'MIGRATION_LOCK_RECOVERY_IN_PROGRESS',
         'Stale migration lock recovery claim no longer matches the inspected lock generation.',
