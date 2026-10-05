@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { assertAbsolutePathWithinBoundary } from './path-boundary.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -62,7 +63,19 @@ export async function trackedProjectPaths(projectRoot: string): Promise<string[]
 }
 
 export async function harnessStatePath(projectRoot: string): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot });
-  const gitPath = stdout.trim();
-  return path.isAbsolute(gitPath) ? gitPath : path.resolve(projectRoot, gitPath);
+  const [{ stdout: gitDirOutput }, { stdout: gitPathOutput }] = await Promise.all([
+    execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: projectRoot, encoding: 'utf8' }),
+    execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot, encoding: 'utf8' }),
+  ]);
+
+  const gitDirValue = gitDirOutput.trim();
+  const gitPathValue = gitPathOutput.trim();
+  const gitDir = path.isAbsolute(gitDirValue)
+    ? gitDirValue
+    : path.resolve(projectRoot, gitDirValue);
+  const statePath = path.isAbsolute(gitPathValue)
+    ? gitPathValue
+    : path.resolve(projectRoot, gitPathValue);
+
+  return assertAbsolutePathWithinBoundary(gitDir, statePath, 'clone-local Harness state');
 }
