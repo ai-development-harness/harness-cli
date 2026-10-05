@@ -126,10 +126,11 @@ git rev-parse --git-path ai-harness
 2. `docs/PRODUCT_REQUIREMENTS.md` — канонический продуктовый контракт и нормативные требования;
 3. `docs/ARCHITECTURE.md` — канонические архитектурные границы, ownership и dependency direction;
 4. `docs/MIGRATION.md` — канонический контракт миграции legacy repository-embedded проектов;
-5. `docs/ROADMAP.md` — канонический порядок реализации и последовательность архитектурной миграции;
-6. `README.md` — обзор и навигация;
-7. актуальный `main` репозитория `ai-development-harness/ai-development-harness-template` — эталон текущего поведения ещё не перенесённых частей протокола;
-8. связанные issues, pull requests и проектные заметки.
+5. `docs/DISTRIBUTION.md` — канонический формат Harness Distribution и immutable release;
+6. `docs/ROADMAP.md` — канонический порядок реализации и последовательность архитектурной миграции;
+7. `README.md` — обзор и навигация;
+8. актуальный `main` репозитория `ai-development-harness/ai-development-harness-template` — эталон текущего поведения ещё не перенесённых частей протокола;
+9. связанные issues, pull requests и проектные заметки.
 
 Не копируй устаревшую реализацию из template механически. При переносе отделяй:
 
