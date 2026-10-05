@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -7,7 +8,7 @@ const execFileAsync = promisify(execFile);
 export async function findGitRoot(cwd: string): Promise<string> {
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd });
-    return stdout.trim();
+    return realpath(stdout.trim());
   } catch {
     throw new Error('Current directory is not inside a Git repository.');
   }
