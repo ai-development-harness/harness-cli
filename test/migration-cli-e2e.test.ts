@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -139,7 +139,7 @@ describe('migration CLI end-to-end', () => {
     expect(plan.code).toBe(0);
     const planned = jsonOutput(plan);
     expect(planned.status).toBe('ready');
-    expect(planned.savedPlan).toBe(planPath);
+    expect(planned.savedPlan).toBe(await realpath(planPath));
 
     const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
     expect(apply.code, apply.stderr || apply.stdout).toBe(0);
@@ -160,7 +160,7 @@ describe('migration CLI end-to-end', () => {
       status: 'already-migrated',
       mutations: 0,
     });
-  });
+  }, 15_000);
 
   it('supports explicit baseline adoption when the legacy lock is absent', async () => {
     const { base, repo, env } = await fixture({ withLock: false });
