@@ -9,12 +9,13 @@ import { ReleaseStore } from '../releases/store.js';
 import type { MigrationPlan, MigrationPlanOperation } from './plan-types.js';
 import {
   createMigrationCheckpoint,
+  listMigrationCheckpointIds,
   loadMigrationCheckpoint,
-  migrationCheckpointExists,
   removeMigrationCheckpoint,
   saveMigrationJournal,
   savePartialMigrationReport,
 } from './checkpoint.js';
+import { acquireMigrationExecutionLock, type MigrationExecutionLockMode } from './execution-lock.js';
 import {
   MigrationExecutionError,
   type MigrationCheckpointStatus,
@@ -248,6 +249,53 @@ async function assertTargetRelease(plan: MigrationPlan, dependencies: MigrationE
 async function assertInitialPreconditions(plan: MigrationPlan, projectRoot: string): Promise<void> {
   for (const operation of plan.operations) {
     await assertOperationPrecondition(projectRoot, operation);
+  }
+}
+
+async function assertNoConflictingCheckpoint(
+  projectRoot: string,
+  migrationId: string,
+): Promise<void> {
+  const existing = await listMigrationCheckpointIds(projectRoot);
+  if (existing.length === 0) return;
+
+  if (existing.includes(migrationId)) {
+    throw new MigrationExecutionError(
+      'MIGRATION_CHECKPOINT_EXISTS',
+      `Migration checkpoint already exists: ${migrationId}. Use resume instead.`,
+      { migrationId, existingMigrationIds: existing },
+    );
+  }
+
+  throw new MigrationExecutionError(
+    'MIGRATION_CHECKPOINT_EXISTS',
+    'Another unfinished migration checkpoint exists. Resume or recover it before applying a different migration plan.',
+    {
+      migrationId,
+      existingMigrationIds: existing,
+    },
+  );
+}
+
+async function withMigrationExecutionLock<T>(
+  projectRoot: string,
+  migrationId: string,
+  mode: MigrationExecutionLockMode,
+  work: () => Promise<T>,
+): Promise<T> {
+  const lease = await acquireMigrationExecutionLock(projectRoot, migrationId, mode);
+  let failed = false;
+  try {
+    return await work();
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    try {
+      await lease.release();
+    } catch (releaseError) {
+      if (!failed) throw releaseError;
+    }
   }
 }
 
@@ -489,16 +537,22 @@ export async function executeMigration(
   const projectRoot = await assertProjectIdentity(plan);
   assertHandlersAvailable(plan, dependencies);
   await assertTargetRelease(plan, dependencies);
-  if (await migrationCheckpointExists(projectRoot, plan.migrationId)) {
-    throw new MigrationExecutionError(
-      'MIGRATION_CHECKPOINT_EXISTS',
-      `Migration checkpoint already exists: ${plan.migrationId}. Use resume instead.`,
-      { migrationId: plan.migrationId },
+
+  return withMigrationExecutionLock(projectRoot, plan.migrationId, 'apply', async () => {
+    // State may have changed while another process owned the execution lock.
+    // Re-check all mutation-sensitive facts only after exclusive ownership.
+    await assertProjectIdentity(plan);
+    await assertTargetRelease(plan, dependencies);
+    await assertNoConflictingCheckpoint(projectRoot, plan.migrationId);
+    await assertInitialPreconditions(plan, projectRoot);
+
+    const checkpoint = await createMigrationCheckpoint(
+      plan,
+      projectRoot,
+      dependencies.now ?? (() => new Date()),
     );
-  }
-  await assertInitialPreconditions(plan, projectRoot);
-  const checkpoint = await createMigrationCheckpoint(plan, projectRoot, dependencies.now ?? (() => new Date()));
-  return runCheckpoint(checkpoint, dependencies);
+    return runCheckpoint(checkpoint, dependencies);
+  });
 }
 
 export async function resumeMigration(
@@ -506,8 +560,12 @@ export async function resumeMigration(
   migrationId: string,
   dependencies: MigrationExecutorDependencies = {},
 ): Promise<MigrationExecutionResult> {
-  const checkpoint = await loadMigrationCheckpoint(projectRoot, migrationId);
-  return runCheckpoint(checkpoint, dependencies);
+  return withMigrationExecutionLock(projectRoot, migrationId, 'resume', async () => {
+    // Load only after ownership is acquired. Otherwise another resumer could
+    // complete/remove the checkpoint between our read and lock acquisition.
+    const checkpoint = await loadMigrationCheckpoint(projectRoot, migrationId);
+    return runCheckpoint(checkpoint, dependencies);
+  });
 }
 
 export async function inspectMigrationCheckpoint(
