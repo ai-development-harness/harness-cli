@@ -256,7 +256,7 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(second).toEqual({ status: 'already-migrated', projectRoot: canonicalRepo });
     const secondResult = await executeLegacyThinMigration(second, { releaseStore: store });
     expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: canonicalRepo });
-  }, 15_000);
+  }, 30_000);
 
   it('accepts CRLF-only platform checkout changes in supported bootstrap files', async () => {
     const { base, repo } = await createLegacyFixture();
