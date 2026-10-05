@@ -71,7 +71,7 @@ export async function releaseListCommand(json = false): Promise<void> {
       }
     }
   } catch (error) {
-    handleReleaseCommandError(error, json);
+    if (!handleReleaseCommandError(error, json)) throw error;
   }
 }
 
@@ -95,6 +95,6 @@ export async function releaseVerifyCommand(release: string, json = false): Promi
     console.log(`Digest: ${result.digest}`);
     console.log(`Path: ${result.root}`);
   } catch (error) {
-    handleReleaseCommandError(error, json);
+    if (!handleReleaseCommandError(error, json)) throw error;
   }
 }
