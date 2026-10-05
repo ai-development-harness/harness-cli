@@ -197,8 +197,8 @@ describe('planMigration', () => {
     expect(byPath.get('AGENTS.md')?.kind).toBe('REPLACE_GENERATED_BLOCK');
     expect(byPath.get('CLAUDE.md')?.kind).toBe('REPLACE_GENERATED_BLOCK');
     expect(byPath.get('.agents/skills/custom/SKILL.md')?.kind).toBe('PRESERVE');
-    expect(byPath.get('planning/PLAN.md')?.kind).toBe('REGENERATE_PROJECTION');
-    expect(byPath.get('planning/STATUS.md')?.kind).toBe('REGENERATE_PROJECTION');
+    expect(byPath.get('planning/PLAN.md')?.kind).toBe('PRESERVE');
+    expect(byPath.get('planning/STATUS.md')?.kind).toBe('PRESERVE');
     expect(first.operations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'CREATE', strategy: 'write-final-migration-report-after-verification' }),
