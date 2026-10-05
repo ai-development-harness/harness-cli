@@ -471,7 +471,7 @@ export async function planMigration(
   }
 
   let releaseDigest: string | null = null;
-  if (targetRelease !== null && inspection.projectRoot !== null) {
+  if (targetRelease !== null && inspection.projectRoot !== null && inspection.baseline !== null) {
     const target = await resolveTarget(dependencies.releaseStore ?? new ReleaseStore(), targetRelease, targetProjectSchemaVersion);
     releaseDigest = target.digest;
     if (target.blocker) blockers.push(target.blocker);
@@ -497,6 +497,25 @@ export async function planMigration(
   let numberedOperations = sortAndNumberOperations(operations);
   addDirtyMutationBlockers(numberedOperations, inspection, blockers);
 
+  const unsafeSharedMutations = numberedOperations
+    .filter(
+      (operation) =>
+        operation.mutates &&
+        operation.classification === 'shared-customized' &&
+        operation.precondition.kind === 'none',
+    )
+    .map((operation) => operation.path);
+  if (unsafeSharedMutations.length > 0) {
+    blockers.push(
+      blocker(
+        'UNSAFE_SHARED_MERGE',
+        'A shared/customized path cannot be transformed because its current content identity is unavailable.',
+        undefined,
+        unsafeSharedMutations,
+      ),
+    );
+  }
+
   const provisionalSeed = planSeed(
     inspection,
     targetRelease,
@@ -507,7 +526,7 @@ export async function planMigration(
   );
   const migrationId = `migration-${sha256(provisionalSeed).slice(0, 16)}`;
 
-  if (inspection.projectRoot !== null) {
+  if (inspection.projectRoot !== null && inspection.baseline !== null) {
     numberedOperations = sortAndNumberOperations([
       ...numberedOperations,
       {
