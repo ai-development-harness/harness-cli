@@ -7,6 +7,16 @@ export {
   resumeMigration,
 } from './executor.js';
 export {
+  executeLegacyThinMigration,
+  legacyThinOperationHandlers,
+  prepareLegacyThinMigration,
+} from './legacy-thin.js';
+export type {
+  LegacyThinMigrationDependencies,
+  LegacyThinMigrationExecution,
+  LegacyThinPreparation,
+} from './legacy-thin.js';
+export {
   isMigrationExecutionError,
   MigrationExecutionError,
 } from './executor-types.js';
