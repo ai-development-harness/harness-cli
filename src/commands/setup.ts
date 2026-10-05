@@ -83,7 +83,7 @@ export async function setupCommand(cwd: string): Promise<void> {
   const claudePath = await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md');
   const statePath = await harnessStatePath(root);
 
-  await writeConfig(root, DEFAULT_CONFIG);
+  await writeConfig(root, DEFAULT_CONFIG, { exclusive: true });
   for (const entry of directories) {
     const directory = await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
     await mkdir(directory, { recursive: true });
@@ -95,7 +95,7 @@ export async function setupCommand(cwd: string): Promise<void> {
     await writeFile(
       await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md'),
       AGENTS_BOOTSTRAP,
-      'utf8',
+      { encoding: 'utf8', flag: 'wx' },
     );
   } else {
     console.warn('AGENTS.md already exists; left unchanged.');
@@ -105,7 +105,7 @@ export async function setupCommand(cwd: string): Promise<void> {
     await writeFile(
       await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md'),
       CLAUDE_BOOTSTRAP,
-      'utf8',
+      { encoding: 'utf8', flag: 'wx' },
     );
   } else {
     console.warn('CLAUDE.md already exists; left unchanged.');
