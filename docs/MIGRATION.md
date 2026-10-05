@@ -597,6 +597,23 @@ Issue #16 реализует `MigrationPlan schemaVersion: 1` как полно�
 
 Если между Plan и Apply исходный path изменился, Apply останавливается с `PLAN_STALE` и требует нового Plan.
 
+## 20.1 Текущая implementation model Executor
+
+Issue #17 реализует execution framework поверх immutable `MigrationPlan`.
+
+Ключевые свойства:
+
+- checkpoint хранится в Git-private `ai-harness/migrations/<migrationId>`;
+- saved `plan.json` не пересчитывается при resume;
+- journal использует состояния `pending → applying → applied → verified`;
+- `applying` — специальное fail-closed состояние: после crash внутри mutation automatic replay запрещён;
+- после `applied` сохраняется postcondition, поэтому resume сначала проверяет уже выполненную mutation и не повторяет её;
+- preconditions проверяются до первой mutation и повторно перед конкретной pending operation;
+- target Harness release digest повторно проверяется перед execution/resume;
+- completed checkpoint удаляется после durable фиксации terminal state; durable project migration report относится к transformations/finalization #18.
+
+Concrete handlers для `TRANSFORM`, `REPLACE_GENERATED_BLOCK`, `DELETE_HARNESS_OWNED_CLEAN` и других domain operations намеренно не входят в #17. Executor принимает их через typed operation-handler contract; это не позволяет execution layer повторно принимать ownership/semantic решения.
+
 ## 21. Checkpoint и interruption safety
 
 Перед первой mutation engine создаёт clone-local checkpoint:
