@@ -732,7 +732,18 @@
       "project-owned canonical artifacts remain Git source of truth",
       "projections are deterministic derived state and never a second source of truth",
       "immutable reports are revision/basis-bound proof artifacts"
-    ]
+    ],
+    "reviewVerdicts": [
+      "pass",
+      "fail",
+      "blocked"
+    ],
+    "findingCategories": [
+      "implementation",
+      "evidence",
+      "contract"
+    ],
+    "immutabilityRule": "existing durable report path cannot be overwritten; each review creates a new revision/basis-bound artifact"
   },
   "runtimeAdapterContract": {
     "schemaVersion": 1,
@@ -1210,5 +1221,46 @@
         "update-engine-self-test.py"
       ]
     }
-  ]
+  ],
+  "executionStateContract": {
+    "schemaVersion": 2,
+    "sourceStorage": ".harness/local/execution/execution-status.json",
+    "targetStorage": "git-private ai-harness",
+    "modes": [
+      "single",
+      "chain",
+      "orchestration"
+    ],
+    "executionStatuses": [
+      "running",
+      "complete",
+      "blocked"
+    ],
+    "commandResults": [
+      "SUCCESS",
+      "PASS",
+      "FAIL",
+      "BLOCKED"
+    ],
+    "resolverStatuses": [
+      "RESUME",
+      "NEXT",
+      "DONE",
+      "BLOCKED",
+      "NOT_FOUND"
+    ],
+    "bounds": {
+      "recentTerminals": 100,
+      "currentDetailsBytes": 16384,
+      "intentBasisBytes": 16384,
+      "progressTelemetrySamples": 8
+    },
+    "invariants": [
+      "nextOrdinal is monotonic and defines latest invocation semantics independently of timestamp collisions",
+      "semantic completion is bound to exact executionId so stale results cannot commit a newer invocation",
+      "read-modify-write is serialized and JSON replacement is atomic",
+      "resume compares saved intent basis with current relevant semantic fingerprints before normal recovery",
+      "terminal history is compact bounded handoff state rather than an unbounded transcript"
+    ]
+  }
 }
