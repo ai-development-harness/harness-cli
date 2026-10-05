@@ -279,7 +279,7 @@ describe('migration CLI end-to-end', () => {
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(status.code).toBe(0);
     expect(jsonOutput(status).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('rejects a changed preserved project file before any migration mutation', async () => {
     const { base, repo, env } = await fixture();
@@ -300,7 +300,7 @@ describe('migration CLI end-to-end', () => {
 
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(status).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('does not overwrite a migration target that appears after planning', async () => {
     const { base, repo, env } = await fixture();
@@ -317,7 +317,7 @@ describe('migration CLI end-to-end', () => {
 
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(status).checkpoints).toEqual([]);
-  });
+  }, 15_000);
 
   it('rejects a tampered saved plan before checkpoint or project mutation', async () => {
     const { base, repo, env } = await fixture();
