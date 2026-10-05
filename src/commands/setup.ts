@@ -2,6 +2,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_CONFIG, configPath, writeConfig } from '../core/config.js';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { resolvePortablePathWithinBoundary } from '../core/path-boundary.js';
 import { globalHarnessPaths } from '../core/paths.js';
 import { isReleaseError } from '../core/releases/errors.js';
 import { resolvePinnedRelease } from '../core/releases/resolver.js';
@@ -17,7 +18,7 @@ async function exists(filePath: string): Promise<boolean> {
 }
 
 async function ensureGitignoreEntry(projectRoot: string, entry: string): Promise<void> {
-  const gitignorePath = path.join(projectRoot, '.gitignore');
+  const gitignorePath = await resolvePortablePathWithinBoundary(projectRoot, '.gitignore', '.gitignore');
   const current = (await exists(gitignorePath)) ? await readFile(gitignorePath, 'utf8') : '';
   const lines = current.split(/\r?\n/).map((line) => line.trim());
 
@@ -72,21 +73,24 @@ export async function setupCommand(cwd: string): Promise<void> {
     DEFAULT_CONFIG.protocol.skillSearchDirectory,
   ];
 
-  await Promise.all(directories.map((entry) => mkdir(path.join(root, entry), { recursive: true })));
+  for (const entry of directories) {
+    const directory = await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
+    await mkdir(directory, { recursive: true });
+  }
 
   const statePath = await harnessStatePath(root);
   await mkdir(statePath, { recursive: true });
 
   await ensureGitignoreEntry(root, DEFAULT_CONFIG.sources.localBrief);
 
-  const agentsPath = path.join(root, 'AGENTS.md');
+  const agentsPath = await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md');
   if (!(await exists(agentsPath))) {
     await writeFile(agentsPath, AGENTS_BOOTSTRAP, 'utf8');
   } else {
     console.warn('AGENTS.md already exists; left unchanged.');
   }
 
-  const claudePath = path.join(root, 'CLAUDE.md');
+  const claudePath = await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md');
   if (!(await exists(claudePath))) {
     await writeFile(claudePath, CLAUDE_BOOTSTRAP, 'utf8');
   } else {
