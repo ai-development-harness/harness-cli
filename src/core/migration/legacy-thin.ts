@@ -8,13 +8,14 @@ import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
 import { atomicWriteText } from './checkpoint.js';
 import { executeMigration, resumeMigration } from './executor.js';
-import type {
-  MigrationExecutionResult,
-  MigrationExecutorDependencies,
-  MigrationOperationContext,
-  MigrationOperationHandler,
-  MigrationOperationHandlers,
-  MigrationOperationPostcondition,
+import {
+  MigrationExecutionError,
+  type MigrationExecutionResult,
+  type MigrationExecutorDependencies,
+  type MigrationOperationContext,
+  type MigrationOperationHandler,
+  type MigrationOperationHandlers,
+  type MigrationOperationPostcondition,
 } from './executor-types.js';
 import { baselineAgents0104, baselineClaude0104 } from './legacy/bootstrap-baseline-0.10.4.js';
 import { getLegacyBaselineDescriptor } from './legacy/baselines.js';
@@ -523,6 +524,28 @@ export function legacyThinOperationHandlers(store: ReleaseStore): MigrationOpera
   };
 }
 
+async function assertPreparedTrackedSourceCurrent(
+  plan: MigrationPlan,
+  operation: MigrationPlan['operations'][number],
+): Promise<void> {
+  if (plan.source.projectRoot === null || operation.precondition.kind !== 'git-blob-sha1') {
+    throw new Error(`Prepared operation ${operation.id} has no tracked source precondition.`);
+  }
+  const actual = await trackedWorkingTreeBlobSha1(plan.source.projectRoot, operation.path);
+  if (actual !== operation.precondition.value) {
+    throw new MigrationExecutionError(
+      'PLAN_STALE',
+      `Git blob precondition changed: ${operation.path}.`,
+      {
+        operationId: operation.id,
+        path: operation.path,
+        expected: operation.precondition.value,
+        actual,
+      },
+    );
+  }
+}
+
 async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> {
   if (
     plan.schemaVersion !== 1 ||
@@ -571,6 +594,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         ) {
           throw new Error(`Unsupported prepared TRANSFORM operation: ${operation.id}.`);
         }
+        await assertPreparedTrackedSourceCurrent(plan, operation);
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const expectedContent = buildThinConfig(source, plan);
         const content = operation.targetDescriptor?.content;
@@ -595,6 +619,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         if (!expectedStrategy || operation.strategy !== expectedStrategy || !operation.mutates) {
           throw new Error(`Unsupported prepared bootstrap operation: ${operation.id}.`);
         }
+        await assertPreparedTrackedSourceCurrent(plan, operation);
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const expectedContent =
           operation.path === 'AGENTS.md'
