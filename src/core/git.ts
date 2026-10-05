@@ -53,6 +53,14 @@ export async function trackedWorkingTreeBlobSha1(
   }
 }
 
+export async function trackedProjectPaths(projectRoot: string): Promise<string[]> {
+  const { stdout } = await execFileAsync('git', ['ls-files', '-z'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  });
+  return stdout.split('\0').filter(Boolean).sort();
+}
+
 export async function harnessStatePath(projectRoot: string): Promise<string> {
   const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'ai-harness'], { cwd: projectRoot });
   const gitPath = stdout.trim();
