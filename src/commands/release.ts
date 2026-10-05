@@ -6,21 +6,19 @@ function writeJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-function handleReleaseCommandError(error: unknown, json: boolean): never {
-  if (isReleaseError(error)) {
-    if (json) {
-      writeJson({
-        ok: false,
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        },
-      });
-    }
-    throw error;
-  }
-  throw error;
+function handleReleaseCommandError(error: unknown, json: boolean): boolean {
+  if (!isReleaseError(error) || !json) return false;
+
+  writeJson({
+    ok: false,
+    error: {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    },
+  });
+  process.exitCode = 1;
+  return true;
 }
 
 export async function releaseInstallCommand(
@@ -48,7 +46,7 @@ export async function releaseInstallCommand(
     console.log(`Digest: ${result.digest}`);
     console.log(`Path: ${result.root}`);
   } catch (error) {
-    handleReleaseCommandError(error, json);
+    if (!handleReleaseCommandError(error, json)) throw error;
   }
 }
 
