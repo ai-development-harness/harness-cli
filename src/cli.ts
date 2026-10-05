@@ -4,13 +4,14 @@ import { doctorCommand } from './commands/doctor.js';
 import { setupCommand } from './commands/setup.js';
 import { statusCommand } from './commands/status.js';
 import { validateCommand } from './commands/validate.js';
+import { getPackageVersion } from './core/package.js';
 
 const program = new Command();
 
 program
   .name('harness')
   .description('AI Development Harness CLI control plane')
-  .version('0.1.0');
+  .version(getPackageVersion());
 
 program
   .command('setup')
