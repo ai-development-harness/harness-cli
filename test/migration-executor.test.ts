@@ -408,4 +408,172 @@ describe('MigrationExecutor', () => {
       executeMigration(plan, { releaseStore: store, handlers: handlers(counters) }),
     ).rejects.toMatchObject({ code: 'MIGRATION_CHECKPOINT_EXISTS' });
   });
+  it('serializes two different migration ids in the same worktree', async () => {
+    const { base, repo } = await createRepository();
+    const { store, digest } = await installedStore(base);
+    const firstPlan = await makePlan(repo, digest);
+    const secondPlan = {
+      ...(await makePlan(repo, digest)),
+      migrationId: 'migration-executor-second',
+    };
+    const counters = new Map<string, number>();
+    let enteredResolve!: () => void;
+    let continueResolve!: () => void;
+    const entered = new Promise<void>((resolve) => { enteredResolve = resolve; });
+    const continueExecution = new Promise<void>((resolve) => { continueResolve = resolve; });
+
+    const blockingTransform: MigrationOperationHandler = {
+      async apply(context) {
+        counters.set(context.operation.id, (counters.get(context.operation.id) ?? 0) + 1);
+        enteredResolve();
+        await continueExecution;
+        await writeText(context.projectRoot, context.operation.path, 'after\n');
+        return { sha256: sha256('after\n') };
+      },
+      async verify(context, postcondition) {
+        const bytes = await readFile(path.join(context.projectRoot, context.operation.path));
+        return postcondition.sha256 === sha256(bytes);
+      },
+    };
+
+    const first = executeMigration(firstPlan, {
+      releaseStore: store,
+      handlers: {
+        TRANSFORM: blockingTransform,
+        CREATE: fileHandler('created\n', counters),
+      },
+    });
+
+    await entered;
+
+    await expect(
+      executeMigration(secondPlan, {
+        releaseStore: store,
+        handlers: handlers(new Map<string, number>()),
+      }),
+    ).rejects.toMatchObject({
+      code: 'MIGRATION_LOCK_ACTIVE',
+      details: {
+        owner: expect.objectContaining({
+          migrationId: firstPlan.migrationId,
+          mode: 'apply',
+        }),
+      },
+    });
+
+    continueResolve();
+    await expect(first).resolves.toMatchObject({
+      migrationId: firstPlan.migrationId,
+      status: 'completed',
+    });
+  });
+
+  it('serializes two concurrent resume calls for one checkpoint', async () => {
+    const { base, repo } = await createRepository();
+    const { store, digest } = await installedStore(base);
+    const plan = await makePlan(repo, digest);
+    const initialCounters = new Map<string, number>();
+
+    await expect(
+      executeMigration(plan, {
+        releaseStore: store,
+        handlers: handlers(initialCounters),
+        hooks: {
+          afterOperationVerified(operation) {
+            if (operation.id === 'op-0001') throw new Error('interrupt-before-second-operation');
+          },
+        },
+      }),
+    ).rejects.toThrow('interrupt-before-second-operation');
+
+    let enteredResolve!: () => void;
+    let continueResolve!: () => void;
+    const entered = new Promise<void>((resolve) => { enteredResolve = resolve; });
+    const continueExecution = new Promise<void>((resolve) => { continueResolve = resolve; });
+    const resumeCounters = new Map<string, number>();
+
+    const blockingCreate: MigrationOperationHandler = {
+      async apply(context) {
+        resumeCounters.set(context.operation.id, (resumeCounters.get(context.operation.id) ?? 0) + 1);
+        enteredResolve();
+        await continueExecution;
+        await writeText(context.projectRoot, context.operation.path, 'created\n');
+        return { sha256: sha256('created\n') };
+      },
+      async verify(context, postcondition) {
+        const bytes = await readFile(path.join(context.projectRoot, context.operation.path));
+        return postcondition.sha256 === sha256(bytes);
+      },
+    };
+
+    const firstResume = resumeMigration(repo, plan.migrationId, {
+      releaseStore: store,
+      handlers: {
+        TRANSFORM: fileHandler('after\n', resumeCounters),
+        CREATE: blockingCreate,
+      },
+    });
+
+    await entered;
+
+    await expect(
+      resumeMigration(repo, plan.migrationId, {
+        releaseStore: store,
+        handlers: handlers(new Map<string, number>()),
+      }),
+    ).rejects.toMatchObject({
+      code: 'MIGRATION_LOCK_ACTIVE',
+      details: {
+        owner: expect.objectContaining({
+          migrationId: plan.migrationId,
+          mode: 'resume',
+        }),
+      },
+    });
+
+    continueResolve();
+    await expect(firstResume).resolves.toMatchObject({
+      migrationId: plan.migrationId,
+      status: 'completed',
+    });
+    expect(resumeCounters.get('op-0002')).toBe(1);
+  });
+
+  it('does not let a different saved plan bypass an unfinished checkpoint', async () => {
+    const { base, repo } = await createRepository();
+    const { store, digest } = await installedStore(base);
+    const firstPlan = await makePlan(repo, digest);
+    const counters = new Map<string, number>();
+
+    await expect(
+      executeMigration(firstPlan, {
+        releaseStore: store,
+        handlers: handlers(counters),
+        hooks: {
+          afterOperationVerified(operation) {
+            if (operation.id === 'op-0001') throw new Error('interrupt-with-checkpoint');
+          },
+        },
+      }),
+    ).rejects.toThrow('interrupt-with-checkpoint');
+
+    const secondPlan = {
+      ...(await makePlan(repo, digest)),
+      migrationId: 'migration-executor-other-plan',
+    };
+
+    await expect(
+      executeMigration(secondPlan, {
+        releaseStore: store,
+        handlers: handlers(new Map<string, number>()),
+      }),
+    ).rejects.toMatchObject({
+      code: 'MIGRATION_CHECKPOINT_EXISTS',
+      details: {
+        migrationId: secondPlan.migrationId,
+        existingMigrationIds: expect.arrayContaining([firstPlan.migrationId]),
+      },
+    });
+  });
+
 });
