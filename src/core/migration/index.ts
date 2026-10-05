@@ -1,6 +1,15 @@
 export { inspectProject } from './legacy/inspector.js';
 export { getLegacyBaselineDescriptor, supportedLegacyReleases } from './legacy/baselines.js';
 export { planMigration, serializeMigrationPlan } from './planner.js';
+export {
+  executeMigration,
+  inspectMigrationCheckpoint,
+  resumeMigration,
+} from './executor.js';
+export {
+  isMigrationExecutionError,
+  MigrationExecutionError,
+} from './executor-types.js';
 export type { MigrationPlannerDependencies } from './planner.js';
 export type {
   MigrationOperationKind,
@@ -13,6 +22,22 @@ export type {
   MigrationPrecondition,
   MigrationVerificationStep,
 } from './plan-types.js';
+export type {
+  MigrationCheckpointPaths,
+  MigrationCheckpointStatus,
+  MigrationExecutionErrorCode,
+  MigrationExecutionResult,
+  MigrationExecutorDependencies,
+  MigrationExecutorHooks,
+  MigrationJournal,
+  MigrationJournalOperation,
+  MigrationJournalOperationStatus,
+  MigrationJournalState,
+  MigrationOperationContext,
+  MigrationOperationHandler,
+  MigrationOperationHandlers,
+  MigrationOperationPostcondition,
+} from './executor-types.js';
 export type {
   LegacyBaselineResolution,
   LegacyFileOwnership,
