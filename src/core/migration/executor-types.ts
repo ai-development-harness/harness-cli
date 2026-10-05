@@ -107,6 +107,7 @@ export interface MigrationExecutorHooks {
 export interface MigrationExecutorDependencies {
   handlers?: MigrationOperationHandlers;
   hooks?: MigrationExecutorHooks;
+  beforeCheckpoint?(plan: MigrationPlan, projectRoot: string): Promise<void> | void;
   now?: () => Date;
   releaseStore?: ReleaseStore;
 }
