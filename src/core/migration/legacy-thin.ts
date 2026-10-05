@@ -348,9 +348,10 @@ export async function prepareLegacyThinMigration(
 async function backupSource(context: MigrationOperationContext): Promise<string | null> {
   const source = await safeProjectPath(context.projectRoot, context.operation.path);
   if (!(await exists(source))) return null;
+  const stateRoot = await harnessStatePath(context.projectRoot);
   const backup = await resolvePortablePathWithinBoundary(
-    context.checkpoint.backups,
-    context.operation.path,
+    stateRoot,
+    `migrations/${context.plan.migrationId}/backups/${context.operation.path}`,
     'migration backup path',
   );
   await mkdir(path.dirname(backup), { recursive: true });
