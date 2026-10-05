@@ -75,11 +75,8 @@ export async function setupCommand(cwd: string): Promise<void> {
   // fail-closed when any configured directory is redirected outside the
   // repository through a symlink/junction/reparse point.
   await resolvePortablePathWithinBoundary(root, 'harness.yaml', 'harness.yaml');
-  const resolvedDirectories: string[] = [];
   for (const entry of directories) {
-    resolvedDirectories.push(
-      await resolvePortablePathWithinBoundary(root, entry, 'setup project directory'),
-    );
+    await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
   }
   await resolvePortablePathWithinBoundary(root, '.gitignore', '.gitignore');
   const agentsPath = await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md');
@@ -87,20 +84,29 @@ export async function setupCommand(cwd: string): Promise<void> {
   const statePath = await harnessStatePath(root);
 
   await writeConfig(root, DEFAULT_CONFIG);
-  for (const directory of resolvedDirectories) {
+  for (const entry of directories) {
+    const directory = await resolvePortablePathWithinBoundary(root, entry, 'setup project directory');
     await mkdir(directory, { recursive: true });
   }
-  await mkdir(statePath, { recursive: true });
+  await mkdir(await harnessStatePath(root), { recursive: true });
   await ensureGitignoreEntry(root, DEFAULT_CONFIG.sources.localBrief);
 
   if (!(await exists(agentsPath))) {
-    await writeFile(agentsPath, AGENTS_BOOTSTRAP, 'utf8');
+    await writeFile(
+      await resolvePortablePathWithinBoundary(root, 'AGENTS.md', 'AGENTS.md'),
+      AGENTS_BOOTSTRAP,
+      'utf8',
+    );
   } else {
     console.warn('AGENTS.md already exists; left unchanged.');
   }
 
   if (!(await exists(claudePath))) {
-    await writeFile(claudePath, CLAUDE_BOOTSTRAP, 'utf8');
+    await writeFile(
+      await resolvePortablePathWithinBoundary(root, 'CLAUDE.md', 'CLAUDE.md'),
+      CLAUDE_BOOTSTRAP,
+      'utf8',
+    );
   } else {
     console.warn('CLAUDE.md already exists; left unchanged.');
   }
