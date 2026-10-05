@@ -1,11 +1,13 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { findGitRoot, resolveHarnessStatePath } from '../core/git.js';
+import { findGitRoot } from '../core/git.js';
 import { isPathBoundaryError } from '../core/path-boundary.js';
 import {
   executeLegacyThinMigration,
   inspectMigrationCheckpoint,
+  inspectMigrationExecutionLock,
   inspectProject,
+  listMigrationCheckpointIds,
   isMigrationExecutionError,
   prepareLegacyThinMigration,
   resumeLegacyThinMigration,
@@ -265,21 +267,6 @@ async function checkpointDiagnostic(projectRoot: string, migrationId: string): P
   }
 }
 
-async function checkpointIds(projectRoot: string): Promise<string[]> {
-  const root = await resolveHarnessStatePath(
-    projectRoot,
-    'migrations',
-    'migration checkpoint inventory',
-  );
-  try {
-    const entries = await readdir(root, { withFileTypes: true });
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
-}
-
 export async function migrationStatusCommand(
   cwd: string,
   migrationId: string | undefined,
@@ -287,12 +274,26 @@ export async function migrationStatusCommand(
 ): Promise<void> {
   try {
     const root = await findGitRoot(cwd);
-    const ids = migrationId ? [migrationId] : await checkpointIds(root);
+    const [ids, executionLock] = await Promise.all([
+      migrationId ? Promise.resolve([migrationId]) : listMigrationCheckpointIds(root),
+      inspectMigrationExecutionLock(root),
+    ]);
     const checkpoints = await Promise.all(ids.map((id) => checkpointDiagnostic(root, id)));
 
     if (json) {
-      writeJson({ ok: true, projectRoot: root, checkpoints });
+      writeJson({ ok: true, projectRoot: root, executionLock, checkpoints });
       return;
+    }
+
+    if (executionLock.state === 'none') {
+      console.log('Execution lock: none');
+    } else if (executionLock.state === 'corrupt') {
+      console.log(`Execution lock: CORRUPT — ${executionLock.error.message}`);
+    } else {
+      console.log(
+        `Execution lock: ${executionLock.state.toUpperCase()} — ${executionLock.owner.migrationId} ` +
+        `(${executionLock.owner.mode}, pid=${executionLock.owner.pid}, host=${executionLock.owner.hostname}, ${executionLock.reason})`,
+      );
     }
 
     if (checkpoints.length === 0) {
