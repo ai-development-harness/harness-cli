@@ -308,18 +308,28 @@ export async function prepareLegacyThinMigration(
 
   const localStateOperation = operations.find((operation) => operation.kind === 'MIGRATE_LOCAL_STATE');
   if (localStateOperation) {
-    const stateRoot = await harnessStatePath(plan.source.projectRoot);
-    const target = await resolvePortablePathWithinBoundary(
-      stateRoot,
-      'execution/execution-status.json',
-      'clone-local execution state',
-    );
-    if (await exists(target)) {
+    try {
+      const stateRoot = await harnessStatePath(plan.source.projectRoot);
+      const target = await resolvePortablePathWithinBoundary(
+        stateRoot,
+        'execution/execution-status.json',
+        'clone-local execution state',
+      );
+      if (await exists(target)) {
+        blockers.push({
+          code: 'LOCAL_STATE_TARGET_CONFLICT',
+          message: 'Clone-local execution state already exists; migration will not overwrite it.',
+          paths: [localStateOperation.path],
+          details: { target },
+        });
+      }
+    } catch (error) {
+      if (!isPathBoundaryError(error)) throw error;
       blockers.push({
-        code: 'LOCAL_STATE_TARGET_CONFLICT',
-        message: 'Clone-local execution state already exists; migration will not overwrite it.',
+        code: error.code,
+        message: error.message,
         paths: [localStateOperation.path],
-        details: { target },
+        details: error.details,
       });
     }
   }
