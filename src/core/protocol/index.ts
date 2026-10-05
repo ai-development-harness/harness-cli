@@ -1,0 +1,40 @@
+export { PROTOCOL_MODEL } from './model.js';
+export {
+  AUTHORITY_CONTRACT,
+  CHAIN_SEPARATOR,
+  COMMAND_RESULTS,
+  CONTEXT_PHASES,
+  DETERMINISTIC_HANDLERS,
+  DISPATCH_KINDS,
+  INPUT_MODES,
+  REASONING_MODES,
+  RUNTIME_PRECONDITIONS,
+  TARGET_KINDS,
+  VALIDATION_ORDER,
+  protocolModelSchema,
+  validateProtocolModel,
+  type CommandResult,
+  type CommandSpec,
+  type ProtocolDomain,
+  type ProtocolModel,
+  type ReasoningMode,
+  type TransitionSpec,
+} from './schema.js';
+export {
+  parseCanonicalCommand,
+  protocolValidationOrder,
+  validateCommandText,
+  type CanonicalCommandParse,
+  type CommandTextValidation,
+  type InvalidCommand,
+  type ParsedCommandSegment,
+  type ValidCommandText,
+} from './parser.js';
+export {
+  authorityContract,
+  canonicalCommands,
+  dispatchSpec,
+  helpCatalog,
+  reasoningProjection,
+  transitionRows,
+} from './projections.js';
