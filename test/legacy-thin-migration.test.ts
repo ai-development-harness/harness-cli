@@ -261,6 +261,7 @@ describe('legacy v0.10.4 → thin migration', () => {
   it('accepts CRLF-only platform checkout changes in supported bootstrap files', async () => {
     const { base, repo } = await createLegacyFixture();
     const store = await installedStore(base);
+    await git(repo, ['config', 'core.autocrlf', 'false']);
 
     for (const relativePath of ['AGENTS.md', 'CLAUDE.md']) {
       const target = path.join(repo, relativePath);
