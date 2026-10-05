@@ -194,18 +194,26 @@ inspect → plan → apply → verify → report
 
 ### 4.7 Protocol Module
 
-Будущий Harness Core module для:
+Harness Core содержит canonical protocol model в `src/core/protocol/`.
 
-- canonical command parsing;
-- target normalization;
-- CTS/state machine;
-- chain validation;
-- read-only protocol projections;
-- execution state transitions.
+На текущем этапе модуль владеет:
 
-Этот модуль должен быть runtime-neutral и не зависеть от Commander.
+- closed schema canonical commands / CTS / authority contract;
+- 32 canonical commands семи domains;
+- target normalization `NNN -> STEP-NNN`;
+- strict chain parsing и cross-domain rejection;
+- explicit result-gated transitions и runtime preconditions как data;
+- deterministic/semantic dispatch metadata;
+- reasoning modes `none` / `required` / `conditional`;
+- help/reasoning/transition projections из одной machine-readable модели.
 
-Связанные требования: `CLI-REQ-140`–`CLI-REQ-148`.
+Модуль runtime-neutral и не зависит от Commander.
+
+Execution-state mutations, semantic runtime invocation, Git side effects и окончательный dispatcher остаются за следующими Stage 4 слоями. В частности, issue #32 переносит parser/CTS authority, но не реализует `ProtocolEngine` execution semantics целиком.
+
+После этого cutover template `.harness/command-transitions.json`, Python parser и generated reasoning projection являются compatibility reference v0.10.4, а не активным source of truth.
+
+Связанные требования: `CLI-REQ-140`–`CLI-REQ-144`, `CLI-REQ-211`, `CLI-REQ-240`, `CLI-REQ-241`.
 
 ### 4.8 Runtime Adapter Boundary
 
@@ -406,15 +414,27 @@ Ports v1:
 
 ### 7.7 ProtocolEngine
 
-Будущий контракт:
+Protocol layer разделён на уже реализованный deterministic command contract и будущий execution dispatcher.
 
-- parse canonical input;
-- normalize target;
-- validate transition/chain;
-- compute available commands;
-- update/read execution state.
+Уже реализовано:
 
-Semantic agent work находится за пределами deterministic validation.
+- `PROTOCOL_MODEL` — единый source of truth command surface;
+- `validateProtocolModel()` — closed schema/integrity gate;
+- `parseCanonicalCommand()` — parser одной canonical command;
+- `validateCommandText()` — structural validation всей chain до dispatch;
+- `canonicalCommands()`, `helpCatalog()`, `reasoningProjection()`, `transitionRows()` — derived read models.
+
+Критический инвариант: отсутствующий CTS edge означает запрещённый переход. Parser не восстанавливает переходы эвристически.
+
+Будущий `ProtocolEngine` поверх этой модели добавляет:
+
+- runtime-precondition evaluation;
+- execution state transitions;
+- semantic proposal handoff;
+- deterministic commits;
+- resume/orchestration behavior.
+
+Semantic agent work находится за пределами deterministic parsing/CTS validation.
 
 ### 7.8 RuntimeAdapter
 
