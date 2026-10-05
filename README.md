@@ -48,7 +48,10 @@ Harness CLI
 - `harness setup` — подготовить существующий Git-репозиторий для Harness;
 - `harness doctor` — проверить окружение и ожидаемую структуру проекта;
 - `harness validate` — проверить `harness.yaml`;
-- `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree.
+- `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree;
+- `harness release install <directory>` — установить локальный проверенный release tree;
+- `harness release list` — показать установленные releases;
+- `harness release verify <version>` — повторно проверить immutable release.
 
 В Core также реализованы:
 
@@ -99,11 +102,18 @@ npm run build
 Локальный запуск:
 
 ```bash
+npm run dev -- release install ./path/to/release
+npm run dev -- release list
+npm run dev -- release verify 0.10.4
 npm run dev -- setup
 npm run dev -- doctor
 npm run dev -- validate
 npm run dev -- status
 ```
+
+Команды `release install/list/verify` поддерживают `--json` для машиночитаемого результата.
+
+`setup` выполняет read-only preflight закреплённого release до первой записи в проект. Если release отсутствует, повреждён или несовместим с текущим CLI/Host API/project schema, setup завершается ошибкой и не создаёт частично настроенный Harness project.
 
 ## Пример проектного контракта
 
