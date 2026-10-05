@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { doctorCommand } from './commands/doctor.js';
+import {
+  releaseInstallCommand,
+  releaseListCommand,
+  releaseVerifyCommand,
+} from './commands/release.js';
 import { setupCommand } from './commands/setup.js';
 import { statusCommand } from './commands/status.js';
 import { validateCommand } from './commands/validate.js';
@@ -32,6 +37,34 @@ program
   .command('status')
   .description('Show Harness project status')
   .action(() => statusCommand(process.cwd()));
+
+const release = program
+  .command('release')
+  .description('Manage installed Harness releases');
+
+release
+  .command('install')
+  .description('Install a verified Harness release tree from a local directory')
+  .argument('<directory>', 'Path to an unpacked Harness release tree')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((directory: string, options: { json?: boolean }) =>
+    releaseInstallCommand(directory, process.cwd(), options.json ?? false),
+  );
+
+release
+  .command('list')
+  .description('List installed Harness releases')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) => releaseListCommand(options.json ?? false));
+
+release
+  .command('verify')
+  .description('Verify an installed Harness release')
+  .argument('<version>', 'Harness release version')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((version: string, options: { json?: boolean }) =>
+    releaseVerifyCommand(version, options.json ?? false),
+  );
 
 try {
   await program.parseAsync(process.argv);
