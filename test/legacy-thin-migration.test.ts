@@ -173,6 +173,16 @@ describe('legacy v0.10.4 → thin migration', () => {
 
     const manifestOperation = preparation.plan.operations.find((item) => item.path === '.harness/manifest.yaml');
     expect(manifestOperation?.targetDescriptor).toMatchObject({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(
+      preparation.plan.operations.filter(
+        (item) => item.path === '.harness/local/execution/execution-status.json',
+      ),
+    ).toHaveLength(1);
+    expect(
+      preparation.plan.operations.find(
+        (item) => item.path === '.harness/local/execution/execution-status.json',
+      )?.kind,
+    ).toBe('MIGRATE_LOCAL_STATE');
 
     const result = await executeLegacyThinMigration(preparation, { releaseStore: store });
     expect(result.status).toBe('completed');
