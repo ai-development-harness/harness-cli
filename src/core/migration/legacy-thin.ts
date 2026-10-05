@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
-import { harnessStatePath, trackedWorkingTreeBlobSha1 } from '../git.js';
+import { harnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
 import { atomicWriteText, exclusiveWriteText } from './checkpoint.js';
@@ -19,6 +19,7 @@ import {
 } from './executor-types.js';
 import { baselineAgents0104, baselineClaude0104 } from './legacy/bootstrap-baseline-0.10.4.js';
 import { getLegacyBaselineDescriptor } from './legacy/baselines.js';
+import { matchesAnyLegacyPattern } from './legacy/patterns.js';
 import { inspectProject } from './legacy/inspector.js';
 import type { MigrationPlan, MigrationPlanMessage, MigrationPlannerOptions } from './plan-types.js';
 import { planMigration, type MigrationPlannerDependencies } from './planner.js';
@@ -613,6 +614,13 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
     throw new Error('Saved migration plan baseline identity does not match a supported immutable descriptor.');
   }
 
+  const trackedPaths = new Set(await trackedProjectPaths(plan.source.projectRoot));
+  const legacyStatePath = '.harness/local/execution/execution-status.json';
+  const legacyStateExists = await exists(safeProjectPath(plan.source.projectRoot, legacyStatePath));
+  const expectedReportPath =
+    `planning/audits/MIGRATION-${plan.migrationId.replace(/^migration-/, '')}.md`;
+  let reportOperations = 0;
+  let localStateOperations = 0;
   const seenPaths = new Set<string>();
   for (const operation of plan.operations) {
     if (seenPaths.has(operation.path)) {
@@ -620,10 +628,30 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
     }
     seenPaths.add(operation.path);
 
+    if (
+      operation.kind !== 'CREATE' &&
+      operation.kind !== 'MIGRATE_LOCAL_STATE' &&
+      !trackedPaths.has(operation.path)
+    ) {
+      throw new Error(
+        `Saved migration plan references a non-tracked source path: ${operation.path}.`,
+      );
+    }
+
     switch (operation.kind) {
       case 'PRESERVE':
         if (operation.mutates) {
           throw new Error(`PRESERVE operation ${operation.id} cannot mutate project data.`);
+        }
+        if (
+          operation.path === '.harness/manifest.yaml' ||
+          operation.path === 'AGENTS.md' ||
+          operation.path === 'CLAUDE.md' ||
+          matchesAnyLegacyPattern(operation.path, baseline.ownership.harnessOwned)
+        ) {
+          throw new Error(
+            `Saved migration plan cannot preserve a path that requires a versioned migration operation: ${operation.path}.`,
+          );
         }
         break;
 
@@ -699,7 +727,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
 
       case 'MIGRATE_LOCAL_STATE': {
         if (
-          operation.path !== '.harness/local/execution/execution-status.json' ||
+          operation.path !== legacyStatePath ||
           operation.targetPath !== 'ai-harness/execution/execution-status.json' ||
           operation.strategy !== 'legacy-execution-state-to-clone-local' ||
           operation.precondition.kind !== 'sha256' ||
@@ -707,13 +735,12 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         ) {
           throw new Error(`Unsupported local-state migration operation: ${operation.id}.`);
         }
+        localStateOperations += 1;
         await assertLocalStateTargetAbsent(plan.source.projectRoot, operation.id);
         break;
       }
 
       case 'CREATE': {
-        const expectedReportPath =
-          `planning/audits/MIGRATION-${plan.migrationId.replace(/^migration-/, '')}.md`;
         if (
           operation.path !== expectedReportPath ||
           operation.strategy !== 'write-final-migration-report-after-verification' ||
@@ -722,6 +749,7 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
         ) {
           throw new Error(`Unsupported CREATE operation in saved plan: ${operation.id}.`);
         }
+        reportOperations += 1;
         await assertProjectTargetAbsent(plan.source.projectRoot, operation.path, operation.id);
         break;
       }
@@ -731,6 +759,25 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
           `Operation kind ${operation.kind} is not supported by the v0.10.4 thin migration domain.`,
         );
     }
+  }
+
+  const missingTrackedPaths = [...trackedPaths].filter((trackedPath) => !seenPaths.has(trackedPath));
+  if (missingTrackedPaths.length > 0) {
+    throw new Error(
+      `Saved migration plan is incomplete; tracked paths are missing operations: ${missingTrackedPaths.join(', ')}.`,
+    );
+  }
+  if (reportOperations !== 1) {
+    throw new Error(
+      `Saved migration plan must contain exactly one final migration report operation; found ${reportOperations}.`,
+    );
+  }
+  if (legacyStateExists !== (localStateOperations === 1)) {
+    throw new Error(
+      legacyStateExists
+        ? 'Saved migration plan is incomplete; legacy operational state requires a migration operation.'
+        : 'Saved migration plan contains a local-state operation but no legacy operational state exists.',
+    );
   }
 }
 
