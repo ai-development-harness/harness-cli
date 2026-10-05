@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
-import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
+import { assertConfigPathBoundaries, DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
 import { resolveHarnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { isPathBoundaryError, resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
@@ -195,16 +195,6 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
-async function assertTargetConfigPaths(projectRoot: string, config: HarnessConfig): Promise<void> {
-  const configuredPaths = [
-    ...Object.values(config.sources),
-    ...Object.values(config.protocol),
-  ];
-  for (const configuredPath of configuredPaths) {
-    await safeProjectPath(projectRoot, configuredPath);
-  }
-}
-
 function buildThinConfig(source: string, plan: MigrationPlan): string {
   const parsed = YAML.parse(source) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
@@ -276,7 +266,7 @@ export async function prepareLegacyThinMigration(
       if (operation.strategy === 'legacy-manifest-to-thin-config') {
         const source = await readFile(await safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         const content = buildThinConfig(source, plan);
-        await assertTargetConfigPaths(
+        await assertConfigPathBoundaries(
           plan.source.projectRoot,
           harnessConfigSchema.parse(YAML.parse(content)),
         );
