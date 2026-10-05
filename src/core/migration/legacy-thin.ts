@@ -234,16 +234,6 @@ export async function prepareLegacyThinMigration(
       } else if (operation.strategy === 'thin-claude-adapter-preserve-project-content') {
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         operations.push(enrichPlanOperation(operation, buildThinClaude(source)));
-      } else if (operation.path === '.harness/harness.lock.json' && operation.kind === 'PRESERVE') {
-        operations.push({
-          ...operation,
-          phase: 'cleanup',
-          kind: 'DELETE_HARNESS_OWNED_CLEAN',
-          mutates: true,
-          classification: 'legacy-metadata',
-          strategy: 'retire-proven-legacy-lock',
-          reason: 'Validated legacy lock provenance is captured by the migration plan/report and is obsolete in a thin project.',
-        });
       } else {
         operations.push(operation);
       }
