@@ -1,0 +1,1266 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "ai-development-harness/ai-development-harness-template",
+    "commit": "9f4aa325154253ab72a8c5940e988046ae872c99",
+    "harnessRelease": "0.10.4",
+    "floatingReferenceAllowed": false,
+    "capturedFromGitHubBlobMetadata": true,
+    "sourceAnchors": [
+      {
+        "path": ".harness/manifest.yaml",
+        "blobSha": "df951166ec9fbef7f71314758ba1a21d1883db92",
+        "size": 9355
+      },
+      {
+        "path": ".harness/command-transitions.json",
+        "blobSha": "3ae5c0e320a692df0703927509cadff15ceae62d",
+        "size": 36390
+      },
+      {
+        "path": ".harness/reasoning-boundaries.json",
+        "blobSha": "cbd512a374547e5db7373d095c445bddb52c6486",
+        "size": 29118
+      },
+      {
+        "path": ".harness/runtime-adapter-contract.json",
+        "blobSha": "3bba066181aef0a68ea7b136f58255ec1271a070",
+        "size": 2623
+      },
+      {
+        "path": ".harness/docs/STATE_AUTHORITY.md",
+        "blobSha": "3dc8e74742cf56f15d794abc9d01309331713526",
+        "size": 8627
+      },
+      {
+        "path": ".harness/docs/EXECUTION_STATUS.md",
+        "blobSha": "94a4fa4898a0b65b9f825d2362b05c0c9a6e80ae",
+        "size": 23156
+      },
+      {
+        "path": ".harness/docs/INTENT_RESUME.md",
+        "blobSha": "ad64a39c4763ef14dc07e3d1a9b3cfe1735955cc",
+        "size": 9702
+      },
+      {
+        "path": ".harness/docs/REASONING_BOUNDARIES.md",
+        "blobSha": "f8d9dfc5d4b62b137465a9ebd3da423a9fe46608",
+        "size": 14203
+      },
+      {
+        "path": ".harness/docs/DOCUMENT_MODEL.md",
+        "blobSha": "6f27634cbb4accb0536c3828dc0fbfd29b118c3b",
+        "size": 15815
+      },
+      {
+        "path": ".harness/docs/PROJECT_STATE.md",
+        "blobSha": "06b7f1b2bfda4f903f9810fb554bcc3d3e63be27",
+        "size": 5981
+      },
+      {
+        "path": ".harness/docs/CONTEXT_CONTRACTS.md",
+        "blobSha": "3b10b437f8943c0849449c26369adc864df0624c",
+        "size": 4698
+      },
+      {
+        "path": ".harness/docs/EXECUTION_GROUPS.md",
+        "blobSha": "587624795199ca468ec7c8dc47227da0d784a972",
+        "size": 5840
+      },
+      {
+        "path": ".harness/docs/COMPLETION_GATE.md",
+        "blobSha": "a82b0d78714bbb8f83af368169eca8400f7aa04e",
+        "size": 4317
+      },
+      {
+        "path": ".harness/docs/PROGRESS_GUARD.md",
+        "blobSha": "ce1f772d3155d15b81881d68e5425d2e4db85dbd",
+        "size": 9401
+      },
+      {
+        "path": ".harness/docs/SIDE_EFFECT_RECOVERY.md",
+        "blobSha": "7447c679feb4fa1a9ca53351f2f2d3b7ca481a67",
+        "size": 7065
+      },
+      {
+        "path": ".harness/docs/TRACEABILITY_COVERAGE.md",
+        "blobSha": "b937f05d050d12da2ba7547345081397a8829311",
+        "size": 3019
+      },
+      {
+        "path": ".harness/tools/command_transitions.py",
+        "blobSha": "c5dba965eba96f3f3332c48ee73ca1639b28dfcf",
+        "size": 38849
+      },
+      {
+        "path": ".harness/tools/command_dispatch.py",
+        "blobSha": "5baae3b9663be1639a8dbe1f82f9efb8ddada247",
+        "size": 44404
+      },
+      {
+        "path": ".harness/tools/document_contract.py",
+        "blobSha": "619bde0129d4cd28de64dbcf67d4f603bd73a233",
+        "size": 22679
+      },
+      {
+        "path": ".harness/tools/project_integrity.py",
+        "blobSha": "18428970cdf4089e0050e78a8d88fdaac7fdb0af",
+        "size": 22190
+      },
+      {
+        "path": ".harness/tools/project_state.py",
+        "blobSha": "c33cacd9dcd9a40a304e53a7140cdcebc66a3bc2",
+        "size": 26443
+      },
+      {
+        "path": ".harness/tools/projection_contract.py",
+        "blobSha": "0d7a58f3f124bfe3a0417e59b2ce8d9172d0182c",
+        "size": 15034
+      },
+      {
+        "path": ".harness/tools/traceability_coverage.py",
+        "blobSha": "de2bf25754f1f407939ecc556204dd568f285bf1",
+        "size": 9436
+      },
+      {
+        "path": ".harness/tools/step_next.py",
+        "blobSha": "cb7aff494ebfb757e488f79c44d48c9e5e0eb5b2",
+        "size": 13821
+      },
+      {
+        "path": ".harness/tools/planning_contract.py",
+        "blobSha": "bcac54cd7efcaccf905e09427dbde569f85f8572",
+        "size": 51196
+      },
+      {
+        "path": ".harness/tools/context_contracts.py",
+        "blobSha": "2345e4da07eb4ff6dc79683b048e6a8be0bc67da",
+        "size": 10718
+      },
+      {
+        "path": ".harness/tools/execution_groups.py",
+        "blobSha": "05c3fc609312b8b869fde051592bc3c5d94baa9f",
+        "size": 9558
+      },
+      {
+        "path": ".harness/tools/execution_status.py",
+        "blobSha": "e03acc9b5d0c24c3c8b2698530a75864b3174c25",
+        "size": 139296
+      },
+      {
+        "path": ".harness/tools/verification.py",
+        "blobSha": "bda6b5eb5f4fe2a1da2961c49c866273610ac5ce",
+        "size": 23824
+      },
+      {
+        "path": ".harness/tools/review_gates.py",
+        "blobSha": "fcb5d0c463a96ec781069940c52f7b18dc11abbc",
+        "size": 16824
+      },
+      {
+        "path": ".harness/tools/review_contract.py",
+        "blobSha": "ecff9b34699d039e04bd2aeb0c545f4e94358caa",
+        "size": 62693
+      },
+      {
+        "path": ".harness/tools/review_findings.py",
+        "blobSha": "c04b093e2028e900d5bc5d88a6799ba32eb8cc2a",
+        "size": 11388
+      },
+      {
+        "path": ".harness/tools/completion_gate.py",
+        "blobSha": "d9074b6af6fa6728cedd4f5406eb0675d54b43f5",
+        "size": 14936
+      },
+      {
+        "path": ".harness/tools/progress_guard.py",
+        "blobSha": "6e1883e1ded0fb4779841a44b3d35dc0d2c898b2",
+        "size": 21905
+      },
+      {
+        "path": ".harness/tools/repair_cycle.py",
+        "blobSha": "e08ece8ead427490789e8713097f3f57ce29bbad",
+        "size": 6964
+      },
+      {
+        "path": ".harness/tools/git_preflight.py",
+        "blobSha": "d9e2a95678353b7c0dd1250f6b0f501639c0bbfc",
+        "size": 47425
+      },
+      {
+        "path": ".harness/tools/git_action.py",
+        "blobSha": "c4fa83160870e9d73dc2ae3ac74acacc88681792",
+        "size": 48540
+      },
+      {
+        "path": ".harness/tools/side_effect_recovery.py",
+        "blobSha": "c967e9c9e8a60dff5ba85550fe50b5ccfa47e211",
+        "size": 6536
+      },
+      {
+        "path": ".harness/tools/harness_update.py",
+        "blobSha": "20eb6e73db87faeffbfe09f05710f7e26a3be659",
+        "size": 71295
+      },
+      {
+        "path": ".harness/tools/run-self-tests.py",
+        "blobSha": "8e489fe74601583734070a15a89df8ebef5251e4",
+        "size": 4838
+      }
+    ]
+  },
+  "intentionalThinArchitectureChanges": [
+    {
+      "id": "THIN-001",
+      "area": "execution-local-storage",
+      "description": "Execution state keeps v0.10.4 semantics but moves from repository .harness/local to Git-private ai-harness storage."
+    },
+    {
+      "id": "THIN-002",
+      "area": "harness-update",
+      "description": "Repository-embedded three-way updater is historical reference only; thin architecture updates verified release pins and coordinates project migration."
+    },
+    {
+      "id": "THIN-003",
+      "area": "runtime-adapters",
+      "description": "RuntimeAdapter contract is captured, but concrete Codex/Claude adapters are deferred beyond Stage 4."
+    }
+  ],
+  "commandModel": {
+    "count": 32,
+    "authorityContract": {
+      "schemaVersion": 1,
+      "semanticResult": "proposal",
+      "executionStateCommit": "dispatcher",
+      "transitionCommit": "dispatcher",
+      "canonicalArtifactCommit": "deterministic-writer",
+      "sideEffectCommit": "deterministic-action"
+    },
+    "validationOrder": [
+      "tokenize",
+      "normalize",
+      "transition-table",
+      "runtime-preconditions",
+      "dispatch"
+    ],
+    "chainSeparator": " > ",
+    "domains": {
+      "PROJECT": {
+        "chainEnabled": false,
+        "inheritTarget": false,
+        "continuationAliases": {},
+        "transitions": []
+      },
+      "STEP": {
+        "chainEnabled": true,
+        "inheritTarget": true,
+        "continuationAliases": {},
+        "transitions": [
+          {
+            "from": "PLAN",
+            "to": "IMPLEMENT",
+            "onPreviousResult": [
+              "SUCCESS"
+            ],
+            "runtimePreconditions": [
+              "step-implement-ready"
+            ]
+          },
+          {
+            "from": "IMPLEMENT",
+            "to": "REVIEW",
+            "onPreviousResult": [
+              "SUCCESS"
+            ],
+            "runtimePreconditions": []
+          },
+          {
+            "from": "REVIEW",
+            "to": "FIX",
+            "onPreviousResult": [
+              "FAIL"
+            ],
+            "runtimePreconditions": []
+          },
+          {
+            "from": "FIX",
+            "to": "REVIEW",
+            "onPreviousResult": [
+              "SUCCESS"
+            ],
+            "runtimePreconditions": []
+          }
+        ]
+      },
+      "SKILL": {
+        "chainEnabled": false,
+        "inheritTarget": false,
+        "continuationAliases": {},
+        "transitions": []
+      },
+      "GITHUB": {
+        "chainEnabled": false,
+        "inheritTarget": false,
+        "continuationAliases": {},
+        "transitions": []
+      },
+      "RELEASE": {
+        "chainEnabled": false,
+        "inheritTarget": false,
+        "continuationAliases": {},
+        "transitions": []
+      },
+      "HARNESS": {
+        "chainEnabled": true,
+        "inheritTarget": true,
+        "continuationAliases": {
+          "APPLY": "UPDATE APPLY"
+        },
+        "transitions": [
+          {
+            "from": "UPDATE CHECK",
+            "to": "UPDATE APPLY",
+            "onPreviousResult": [
+              "PASS"
+            ],
+            "runtimePreconditions": [
+              "matching-update-target-and-route"
+            ]
+          }
+        ]
+      },
+      "GIT": {
+        "chainEnabled": true,
+        "inheritTarget": false,
+        "continuationAliases": {},
+        "transitions": [
+          {
+            "from": "CHECK",
+            "to": "COMMIT",
+            "onPreviousResult": [
+              "PASS"
+            ],
+            "runtimePreconditions": []
+          },
+          {
+            "from": "CHECK",
+            "to": "PUSH",
+            "onPreviousResult": [
+              "PASS"
+            ],
+            "runtimePreconditions": [
+              "git-push-ready"
+            ]
+          },
+          {
+            "from": "CHECK",
+            "to": "PR",
+            "onPreviousResult": [
+              "PASS"
+            ],
+            "runtimePreconditions": [
+              "git-pr-ready"
+            ]
+          },
+          {
+            "from": "COMMIT",
+            "to": "PUSH",
+            "onPreviousResult": [
+              "SUCCESS"
+            ],
+            "runtimePreconditions": []
+          },
+          {
+            "from": "PUSH",
+            "to": "PR",
+            "onPreviousResult": [
+              "SUCCESS"
+            ],
+            "runtimePreconditions": []
+          }
+        ]
+      }
+    },
+    "commands": [
+      {
+        "domain": "PROJECT",
+        "operation": "INIT",
+        "canonical": "PROJECT INIT",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "PROJECT",
+        "operation": "STATUS",
+        "canonical": "PROJECT STATUS",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "PROJECT",
+        "operation": "RECONCILE",
+        "canonical": "PROJECT RECONCILE",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "PROJECT",
+        "operation": "QUICK FIX",
+        "canonical": "PROJECT QUICK FIX:",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "required"
+      },
+      {
+        "domain": "STEP",
+        "operation": "ADD",
+        "canonical": "STEP ADD:",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "required"
+      },
+      {
+        "domain": "STEP",
+        "operation": "LIST",
+        "canonical": "STEP LIST",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "SHOW",
+        "canonical": "STEP SHOW STEP-NNN",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "NEXT",
+        "canonical": "STEP NEXT",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "PLAN",
+        "canonical": "STEP PLAN STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "IMPLEMENT",
+        "canonical": "STEP IMPLEMENT STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "REVIEW",
+        "canonical": "STEP REVIEW STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "FIX",
+        "canonical": "STEP FIX STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "RUN",
+        "canonical": "STEP RUN STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "conditional",
+        "chainAllowed": false,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "STEP",
+        "operation": "AUDIT",
+        "canonical": "STEP AUDIT STEP-NNN",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "step",
+        "input": "none"
+      },
+      {
+        "domain": "SKILL",
+        "operation": "FIND",
+        "canonical": "SKILL FIND:",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "required"
+      },
+      {
+        "domain": "SKILL",
+        "operation": "INSTALL",
+        "canonical": "SKILL INSTALL:",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "required"
+      },
+      {
+        "domain": "SKILL",
+        "operation": "CREATE",
+        "canonical": "SKILL CREATE:",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "required"
+      },
+      {
+        "domain": "GITHUB",
+        "operation": "GENERATE TEMPLATES",
+        "canonical": "GITHUB GENERATE TEMPLATES",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "RELEASE",
+        "operation": "CHECK",
+        "canonical": "RELEASE CHECK",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "HELP",
+        "canonical": "HARNESS HELP",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "UPDATE CHECK",
+        "canonical": "HARNESS UPDATE CHECK",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": true,
+        "target": "release-optional",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "UPDATE APPLY",
+        "canonical": "HARNESS UPDATE APPLY",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": true,
+        "target": "release-optional",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "STATUS",
+        "canonical": "HARNESS STATUS",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "RESUME",
+        "canonical": "HARNESS RESUME",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "DOCTOR",
+        "canonical": "HARNESS DOCTOR",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "HARNESS",
+        "operation": "CONFIG",
+        "canonical": "HARNESS CONFIG",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "GIT",
+        "operation": "CHECK",
+        "canonical": "GIT CHECK",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": true,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "GIT",
+        "operation": "COMMIT",
+        "canonical": "GIT COMMIT",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "none",
+        "input": "optional"
+      },
+      {
+        "domain": "GIT",
+        "operation": "PUSH",
+        "canonical": "GIT PUSH",
+        "dispatch": "semantic",
+        "reasoning": "conditional",
+        "chainAllowed": true,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "GIT",
+        "operation": "PR",
+        "canonical": "GIT PR",
+        "dispatch": "semantic",
+        "reasoning": "required",
+        "chainAllowed": true,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "GIT",
+        "operation": "PR FINISH",
+        "canonical": "GIT PR FINISH",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      },
+      {
+        "domain": "GIT",
+        "operation": "SYNC",
+        "canonical": "GIT SYNC",
+        "dispatch": "deterministic",
+        "reasoning": "none",
+        "chainAllowed": false,
+        "target": "none",
+        "input": "none"
+      }
+    ],
+    "reasoningCommandCount": 32
+  },
+  "artifactContracts": {
+    "canonicalArtifacts": [
+      "REQ",
+      "ADR",
+      "STEP",
+      "OQ",
+      "PRN"
+    ],
+    "durableReportKinds": [
+      "implementation-review",
+      "planning-review",
+      "init-review",
+      "audit-reconcile-migration",
+      "release-check",
+      "skill-search"
+    ],
+    "projectionKinds": [
+      "requirements-spec",
+      "requirements-status",
+      "roadmap",
+      "project-status",
+      "open-questions-index"
+    ],
+    "rules": [
+      "project-owned canonical artifacts remain Git source of truth",
+      "projections are deterministic derived state and never a second source of truth",
+      "immutable reports are revision/basis-bound proof artifacts"
+    ],
+    "reviewVerdicts": [
+      "pass",
+      "fail",
+      "blocked"
+    ],
+    "findingCategories": [
+      "implementation",
+      "evidence",
+      "contract"
+    ],
+    "immutabilityRule": "existing durable report path cannot be overwritten; each review creates a new revision/basis-bound artifact"
+  },
+  "runtimeAdapterContract": {
+    "schemaVersion": 1,
+    "contractId": "harness.runtime-adapter",
+    "methods": [
+      "getIdentity",
+      "getCapabilities",
+      "getAccount",
+      "start",
+      "resume",
+      "cancel",
+      "status"
+    ],
+    "capabilities": [
+      "runtimeIdentity",
+      "authenticatedAccount",
+      "modelEffort",
+      "interactiveInput",
+      "streaming",
+      "resume",
+      "cancel",
+      "subagents",
+      "structuredOutput",
+      "toolMcp",
+      "sessionExecutionIds"
+    ],
+    "events": [
+      "run.started",
+      "model.message.delta",
+      "model.message.completed",
+      "tool.started",
+      "tool.completed",
+      "input.required",
+      "auth.required",
+      "run.interrupted",
+      "run.completed",
+      "run.failed"
+    ],
+    "supportStates": [
+      "native",
+      "synthesized",
+      "unsupported"
+    ],
+    "adapters": [
+      "codex",
+      "claude"
+    ]
+  },
+  "selfTests": {
+    "count": 42,
+    "discoveryRule": ".harness/tools/*-self-test.py",
+    "files": [
+      "command-dispatch-self-test.py",
+      "command-references-self-test.py",
+      "completion-gate-self-test.py",
+      "context-budget-self-test.py",
+      "context-contract-self-test.py",
+      "document-contract-self-test.py",
+      "execution-groups-self-test.py",
+      "execution-self-test.py",
+      "git-policy-self-test.py",
+      "git-pr-action-self-test.py",
+      "git-preflight-self-test.py",
+      "harness-config-self-test.py",
+      "harness-update-self-test.py",
+      "harness-ux-self-test.py",
+      "impact-analysis-self-test.py",
+      "intent-resume-self-test.py",
+      "known-issues-self-test.py",
+      "orchestration-harness-self-test.py",
+      "planning-contract-self-test.py",
+      "pr-provider-self-test.py",
+      "progress-guard-self-test.py",
+      "project-principles-self-test.py",
+      "project-principles-workflow-self-test.py",
+      "project-state-self-test.py",
+      "reasoning-boundaries-self-test.py",
+      "reliable-orchestration-fault-self-test.py",
+      "repair-cycle-self-test.py",
+      "report-contract-self-test.py",
+      "repository-hardening-self-test.py",
+      "requirements-quality-self-test.py",
+      "requirements-quality-workflow-self-test.py",
+      "review-findings-self-test.py",
+      "review-gates-self-test.py",
+      "run-self-tests-self-test.py",
+      "runtime-adapter-contract-self-test.py",
+      "semantic-artifacts-self-test.py",
+      "side-effect-recovery-self-test.py",
+      "step-next-self-test.py",
+      "traceability-coverage-self-test.py",
+      "update-engine-self-test.py",
+      "update-migration-self-test.py",
+      "verification-self-test.py"
+    ]
+  },
+  "parityCases": [
+    {
+      "id": "PARITY-COMMAND-001",
+      "area": "canonical-command-model",
+      "behavior": "preserve",
+      "plannedIssue": 32,
+      "templateSources": [
+        ".harness/command-transitions.json",
+        ".harness/tools/command_transitions.py"
+      ],
+      "targetCoreModule": "core/protocol/command-model",
+      "sourceTests": [
+        "command-dispatch-self-test.py",
+        "command-references-self-test.py"
+      ],
+      "assertions": [
+        "32 canonical commands across PROJECT, STEP, SKILL, GITHUB, RELEASE, HARNESS and GIT",
+        "canonical spelling, target/input shape and chain eligibility remain stable",
+        "validation order remains tokenize -> normalize -> transition-table -> runtime-preconditions -> dispatch"
+      ],
+      "cutoverCondition": "Pinned Core owns command parsing/normalization/CTS data; template parser is compatibility reference only."
+    },
+    {
+      "id": "PARITY-CTS-002",
+      "area": "chains-and-transitions",
+      "behavior": "preserve",
+      "plannedIssue": 32,
+      "templateSources": [
+        ".harness/command-transitions.json",
+        ".harness/tools/command_dispatch.py"
+      ],
+      "targetCoreModule": "core/protocol/cts",
+      "sourceTests": [
+        "command-dispatch-self-test.py",
+        "orchestration-harness-self-test.py"
+      ],
+      "assertions": [
+        "STEP, HARNESS and GIT transition tables preserve result-gated continuation",
+        "cross-domain and invalid-order chains fail closed",
+        "HARNESS APPLY continuation alias and target inheritance remain data-driven"
+      ],
+      "cutoverCondition": "Core CTS is the only active transition authority used by dispatcher."
+    },
+    {
+      "id": "PARITY-AUTHORITY-003",
+      "area": "authority-and-reasoning-boundaries",
+      "behavior": "preserve",
+      "plannedIssue": 32,
+      "templateSources": [
+        ".harness/reasoning-boundaries.json",
+        ".harness/docs/STATE_AUTHORITY.md",
+        ".harness/docs/REASONING_BOUNDARIES.md"
+      ],
+      "targetCoreModule": "core/protocol/authority",
+      "sourceTests": [
+        "reasoning-boundaries-self-test.py",
+        "semantic-artifacts-self-test.py"
+      ],
+      "assertions": [
+        "semantic result remains proposal-only",
+        "dispatcher commits execution/transition state",
+        "deterministic writer commits canonical artifacts and deterministic action commits side effects",
+        "reasoning mode none/required/conditional remains defined for all 32 commands"
+      ],
+      "cutoverCondition": "Reasoning projection is generated from pinned Core protocol data; runtime adapters cannot redefine authority."
+    },
+    {
+      "id": "PARITY-DOCUMENT-004",
+      "area": "artifact-and-report-contracts",
+      "behavior": "preserve",
+      "plannedIssue": 33,
+      "templateSources": [
+        ".harness/docs/DOCUMENT_MODEL.md",
+        ".harness/tools/document_contract.py",
+        ".harness/tools/project_integrity.py"
+      ],
+      "targetCoreModule": "core/artifacts/contracts",
+      "sourceTests": [
+        "document-contract-self-test.py",
+        "report-contract-self-test.py",
+        "repository-hardening-self-test.py"
+      ],
+      "assertions": [
+        "REQ/ADR/STEP/OQ/PRN canonical IDs, statuses, sections and refs validate fail-closed",
+        "immutable review/planning/init report contracts remain explicit",
+        "configured project paths are authoritative instead of default paths becoming a second topology source"
+      ],
+      "cutoverCondition": "harness validate uses pinned Core artifact contracts; template validators cease to be active runtime implementation."
+    },
+    {
+      "id": "PARITY-PROJECTION-005",
+      "area": "project-state-traceability-and-projections",
+      "behavior": "preserve",
+      "plannedIssue": 34,
+      "templateSources": [
+        ".harness/docs/PROJECT_STATE.md",
+        ".harness/tools/project_state.py",
+        ".harness/tools/projection_contract.py",
+        ".harness/tools/traceability_coverage.py",
+        ".harness/tools/step_next.py"
+      ],
+      "targetCoreModule": "core/project/state",
+      "sourceTests": [
+        "project-state-self-test.py",
+        "traceability-coverage-self-test.py",
+        "step-next-self-test.py",
+        "impact-analysis-self-test.py"
+      ],
+      "assertions": [
+        "projections remain derived data, never a second source of truth",
+        "missing/cyclic links stay visible and fail closed where required",
+        "STEP NEXT remains deterministic from priority, dependencies and impact facts"
+      ],
+      "cutoverCondition": "PROJECT STATUS and STEP read models come from pinned Core DTOs without clients reparsing repository markdown."
+    },
+    {
+      "id": "PARITY-PLANNING-006",
+      "area": "planning-context-principles-and-groups",
+      "behavior": "preserve",
+      "plannedIssue": 35,
+      "templateSources": [
+        ".harness/docs/CONTEXT_CONTRACTS.md",
+        ".harness/docs/EXECUTION_GROUPS.md",
+        ".harness/tools/planning_contract.py",
+        ".harness/tools/context_contracts.py",
+        ".harness/tools/execution_groups.py"
+      ],
+      "targetCoreModule": "core/planning/context",
+      "sourceTests": [
+        "planning-contract-self-test.py",
+        "context-contract-self-test.py",
+        "execution-groups-self-test.py",
+        "project-principles-self-test.py"
+      ],
+      "assertions": [
+        "planning fingerprints distinguish semantic contract changes from scheduling/traceability metadata",
+        "role-specific context is minimal and runtime-neutral",
+        "execution-group cycles and mutation-path conflicts are deterministic blockers"
+      ],
+      "cutoverCondition": "Planner/implementer/reviewer context manifests and plan freshness are produced only by pinned Core."
+    },
+    {
+      "id": "PARITY-EXECUTION-007",
+      "area": "execution-state-and-intent-safe-resume",
+      "behavior": "preserve-with-storage-change",
+      "plannedIssue": 36,
+      "templateSources": [
+        ".harness/docs/STATE_AUTHORITY.md",
+        ".harness/docs/EXECUTION_STATUS.md",
+        ".harness/docs/INTENT_RESUME.md",
+        ".harness/tools/execution_status.py"
+      ],
+      "targetCoreModule": "core/execution/state",
+      "sourceTests": [
+        "execution-self-test.py",
+        "intent-resume-self-test.py",
+        "reliable-orchestration-fault-self-test.py"
+      ],
+      "assertions": [
+        "execution identity, monotonic invocation ordering and stale-result rejection survive extraction",
+        "resume fails closed when captured intent basis no longer matches relevant project contracts",
+        "terminal/recoverable execution history stays bounded"
+      ],
+      "cutoverCondition": "Semantics remain parity-equivalent while storage moves intentionally from .harness/local to Git-private ai-harness."
+    },
+    {
+      "id": "PARITY-REVIEW-008",
+      "area": "verification-review-completion-and-convergence",
+      "behavior": "preserve",
+      "plannedIssue": 37,
+      "templateSources": [
+        ".harness/docs/COMPLETION_GATE.md",
+        ".harness/docs/PROGRESS_GUARD.md",
+        ".harness/tools/verification.py",
+        ".harness/tools/review_gates.py",
+        ".harness/tools/review_contract.py",
+        ".harness/tools/completion_gate.py",
+        ".harness/tools/progress_guard.py",
+        ".harness/tools/repair_cycle.py"
+      ],
+      "targetCoreModule": "core/review/convergence",
+      "sourceTests": [
+        "verification-self-test.py",
+        "review-gates-self-test.py",
+        "review-findings-self-test.py",
+        "completion-gate-self-test.py",
+        "progress-guard-self-test.py",
+        "repair-cycle-self-test.py"
+      ],
+      "assertions": [
+        "PASS/FAIL/BLOCKED remain distinct semantic outcomes",
+        "stale review/evidence cannot close a STEP",
+        "repeated findings/no-progress stop repair loops before or at the hard cap"
+      ],
+      "cutoverCondition": "Core owns review trust, completion proof and convergence gates; model output alone never commits PASS."
+    },
+    {
+      "id": "PARITY-GIT-009",
+      "area": "git-safety-actions-and-side-effect-recovery",
+      "behavior": "preserve",
+      "plannedIssue": 38,
+      "templateSources": [
+        ".harness/tools/git_preflight.py",
+        ".harness/tools/git_action.py",
+        ".harness/tools/side_effect_recovery.py"
+      ],
+      "targetCoreModule": "core/git/safety-actions",
+      "sourceTests": [
+        "git-policy-self-test.py",
+        "git-preflight-self-test.py",
+        "git-pr-action-self-test.py",
+        "side-effect-recovery-self-test.py",
+        "pr-provider-self-test.py"
+      ],
+      "assertions": [
+        "protected/dirty/diverged/unpublished states are deterministic preflight facts",
+        "external side effects require observed postconditions instead of trusting model prose",
+        "recovery remains idempotent and fail-closed"
+      ],
+      "cutoverCondition": "Pinned Core owns Git safety/action contracts; provider CLI calls remain infrastructure adapters."
+    },
+    {
+      "id": "PARITY-UPDATE-010",
+      "area": "harness-update",
+      "behavior": "intentional-architecture-change",
+      "plannedIssue": 39,
+      "templateSources": [
+        ".harness/tools/harness_update.py"
+      ],
+      "targetCoreModule": "core/update/thin-update-service",
+      "sourceTests": [
+        "harness-update-self-test.py",
+        "update-engine-self-test.py",
+        "update-migration-self-test.py"
+      ],
+      "assertions": [
+        "legacy embedded updater is preserved only as historical compatibility evidence",
+        "thin UPDATE CHECK remains read-only",
+        "thin UPDATE APPLY advances a verified release pin and coordinates project-schema migration without repopulating .harness/tools"
+      ],
+      "cutoverCondition": "Embedded three-way repository updater is not copied into Core; thin UpdateService becomes the only active update implementation."
+    },
+    {
+      "id": "PARITY-RUNTIME-011",
+      "area": "runtime-adapter-contract",
+      "behavior": "contract-only-deferred-implementation",
+      "plannedIssue": null,
+      "templateSources": [
+        ".harness/runtime-adapter-contract.json"
+      ],
+      "targetCoreModule": "core/runtime/contract",
+      "sourceTests": [
+        "runtime-adapter-contract-self-test.py"
+      ],
+      "assertions": [
+        "runtime adapter methods, capabilities, events and explicit support states remain a stable contract",
+        "Codex/Claude concrete adapter implementations are intentionally deferred beyond Stage 4"
+      ],
+      "cutoverCondition": "Stage 4 may package the runtime-neutral contract, but concrete RuntimeAdapter implementations are not required for source-of-truth cutover."
+    },
+    {
+      "id": "PARITY-DISPATCH-012",
+      "area": "protocol-engine-dispatch",
+      "behavior": "preserve",
+      "plannedIssue": 40,
+      "templateSources": [
+        ".harness/tools/command_dispatch.py",
+        ".harness/docs/STATE_AUTHORITY.md"
+      ],
+      "targetCoreModule": "core/protocol/dispatcher",
+      "sourceTests": [
+        "command-dispatch-self-test.py",
+        "orchestration-harness-self-test.py",
+        "reliable-orchestration-fault-self-test.py"
+      ],
+      "assertions": [
+        "read-only/deterministic commands do not require semantic runtime",
+        "semantic commands produce bounded handoff/proposal data before deterministic commit",
+        "STEP RUN orchestration and explicit chains preserve resume/stop semantics"
+      ],
+      "cutoverCondition": "CLI is a thin host over ProtocolEngine; template dispatch code is no longer active."
+    }
+  ],
+  "criticalNegativeCases": [
+    {
+      "id": "NEG-CMD-CROSS-DOMAIN",
+      "expect": "invalid cross-domain command chains are rejected before dispatch",
+      "sourceTests": [
+        "command-dispatch-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-CMD-INVALID-TRANSITION",
+      "expect": "invalid same-domain ordering/result transition is rejected",
+      "sourceTests": [
+        "command-dispatch-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-DOC-MALFORMED",
+      "expect": "malformed canonical artifact/report fails validation instead of degrading silently",
+      "sourceTests": [
+        "document-contract-self-test.py",
+        "report-contract-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-TRACE-BROKEN",
+      "expect": "missing/cyclic canonical references remain diagnostics/blockers",
+      "sourceTests": [
+        "traceability-coverage-self-test.py",
+        "project-state-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-PLAN-STALE",
+      "expect": "changed semantic planning basis makes Ready plan stale",
+      "sourceTests": [
+        "planning-contract-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-CONTEXT-MISSING",
+      "expect": "missing required context link blocks role context construction",
+      "sourceTests": [
+        "context-contract-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-EXEC-STALE-ID",
+      "expect": "stale executionId/result cannot commit current execution state",
+      "sourceTests": [
+        "execution-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-EXEC-INTENT-CHANGED",
+      "expect": "resume blocks when relevant STEP/REQ/ADR/architecture intent changed",
+      "sourceTests": [
+        "intent-resume-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-REVIEW-STALE",
+      "expect": "stale review/evidence cannot satisfy completion",
+      "sourceTests": [
+        "completion-gate-self-test.py",
+        "review-findings-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-REPAIR-NO-PROGRESS",
+      "expect": "repeated findings or no progress stop FIX↔REVIEW convergence",
+      "sourceTests": [
+        "progress-guard-self-test.py",
+        "repair-cycle-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-GIT-UNSAFE",
+      "expect": "dirty/protected/diverged/remote-ahead unsafe Git paths fail closed",
+      "sourceTests": [
+        "git-policy-self-test.py",
+        "git-preflight-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-SIDE-EFFECT-UNKNOWN",
+      "expect": "uncertain external side effect is reconciled rather than assumed successful",
+      "sourceTests": [
+        "side-effect-recovery-self-test.py"
+      ]
+    },
+    {
+      "id": "NEG-UPDATE-CONFLICT",
+      "expect": "legacy update collision/ownership ambiguity blocks mutation",
+      "sourceTests": [
+        "harness-update-self-test.py",
+        "update-engine-self-test.py"
+      ]
+    }
+  ],
+  "executionStateContract": {
+    "schemaVersion": 2,
+    "sourceStorage": ".harness/local/execution/execution-status.json",
+    "targetStorage": "git-private ai-harness",
+    "modes": [
+      "single",
+      "chain",
+      "orchestration"
+    ],
+    "executionStatuses": [
+      "running",
+      "complete",
+      "blocked"
+    ],
+    "commandResults": [
+      "SUCCESS",
+      "PASS",
+      "FAIL",
+      "BLOCKED"
+    ],
+    "resolverStatuses": [
+      "RESUME",
+      "NEXT",
+      "DONE",
+      "BLOCKED",
+      "NOT_FOUND"
+    ],
+    "bounds": {
+      "recentTerminals": 100,
+      "currentDetailsBytes": 16384,
+      "intentBasisBytes": 16384,
+      "progressTelemetrySamples": 8
+    },
+    "invariants": [
+      "nextOrdinal is monotonic and defines latest invocation semantics independently of timestamp collisions",
+      "semantic completion is bound to exact executionId so stale results cannot commit a newer invocation",
+      "read-modify-write is serialized and JSON replacement is atomic",
+      "resume compares saved intent basis with current relevant semantic fingerprints before normal recovery",
+      "terminal history is compact bounded handoff state rather than an unbounded transcript"
+    ]
+  }
+}
