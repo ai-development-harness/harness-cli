@@ -192,6 +192,20 @@ function validateJournalAgainstPlan(plan: MigrationPlan, journal: MigrationJourn
   }
 }
 
+export async function migrationCheckpointExists(
+  projectRoot: string,
+  migrationId: string,
+): Promise<boolean> {
+  const paths = await migrationCheckpointPaths(projectRoot, migrationId);
+  try {
+    await readFile(paths.plan);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
 export async function createMigrationCheckpoint(
   plan: MigrationPlan,
   projectRoot: string,
