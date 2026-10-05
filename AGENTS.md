@@ -122,9 +122,10 @@ git rev-parse --git-path ai-harness
 Для работы внутри этого репозитория используй следующий порядок:
 
 1. текущий code, tests и package metadata этого repository;
-2. `README.md` и явно принятые architecture contracts этого repository;
-3. актуальный `main` репозитория `ai-development-harness/ai-development-harness-template` — как reference текущего protocol behavior, пока соответствующий функционал ещё не перенесён в CLI;
-4. связанные issues / pull requests / design notes.
+2. `docs/ROADMAP.md` — канонический план работ и последовательность архитектурной миграции;
+3. `README.md` и явно принятые architecture contracts этого repository;
+4. актуальный `main` репозитория `ai-development-harness/ai-development-harness-template` — как reference текущего protocol behavior, пока соответствующий функционал ещё не перенесён в CLI;
+5. связанные issues / pull requests / design notes.
 
 Не копируй legacy implementation из template механически. При переносе отделяй:
 
@@ -211,7 +212,7 @@ CLI будет работать с реальными пользовательс
 - Не запускай произвольные scripts/hooks из устанавливаемого Harness release без отдельной доверенной модели выполнения.
 - Path handling должен быть cross-platform и не позволять выходить за ожидаемые boundaries.
 
-## 11. Текущий scope
+## 11. Текущий scope и план
 
 Первый реализованный slice намеренно небольшой:
 
@@ -220,15 +221,16 @@ CLI будет работать с реальными пользовательс
 - `harness validate`;
 - `harness status`.
 
-Ближайшее архитектурное направление:
+Канонический план дальнейшей работы находится в `docs/ROADMAP.md`.
 
-1. external immutable Harness release store/resolver;
-2. migration существующих repository-embedded Harness projects;
-3. protocol/core extraction;
-4. runtime integration contract без перехвата интерактивного TUI;
-5. local API / MCP-like surface для CLI, editor integrations и других внешних инструментов.
+Перед любым существенным architectural/implementation change обязательно:
 
-Не считай будущие пункты уже реализованными. Перед использованием возможности проверяй фактический код.
+1. прочитай `docs/ROADMAP.md`;
+2. проверь, к какому этапу относится изменение;
+3. не реализуй future slice «заодно»;
+4. при изменении принятой последовательности или архитектурной границы сначала актуализируй roadmap.
+
+Не считай будущие пункты roadmap уже реализованными. Перед использованием возможности проверяй фактический код.
 
 ## 12. Стиль изменений
 
