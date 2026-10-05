@@ -51,7 +51,12 @@ Harness CLI
 - `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree;
 - `harness release install <directory>` — установить локальный проверенный release tree;
 - `harness release list` — показать установленные releases;
-- `harness release verify <version>` — повторно проверить immutable release.
+- `harness release verify <version>` — повторно проверить immutable release;
+- `harness migrate inspect` — read-only инспекция legacy/thin состояния;
+- `harness migrate plan` — read-only dry-run и построение prepared migration plan;
+- `harness migrate apply --plan <file>` — применение только ранее сохранённого exact plan;
+- `harness migrate status [migration-id]` — checkpoint/recovery diagnostics;
+- `harness migrate resume <migration-id>` — безопасное продолжение прерванной migration.
 
 В Core также реализованы:
 
@@ -109,9 +114,42 @@ npm run dev -- setup
 npm run dev -- doctor
 npm run dev -- validate
 npm run dev -- status
+npm run dev -- migrate inspect
+npm run dev -- migrate plan --json
 ```
 
 Команды `release install/list/verify` поддерживают `--json` для машиночитаемого результата.
+
+## Миграция legacy repository-embedded Harness
+
+Public workflow намеренно разделяет read-only Plan и mutation Apply:
+
+```bash
+# 1. Посмотреть фактическое состояние проекта.
+harness migrate inspect
+
+# 2. Чистый dry-run: repository и clone-local state не изменяются.
+harness migrate plan
+
+# 3. Явно сохранить exact prepared plan.
+harness migrate plan --out ../migration-plan.json
+
+# 4. Применить только этот сохранённый plan.
+harness migrate apply --plan ../migration-plan.json
+
+# 5. Если процесс был прерван — посмотреть checkpoint и продолжить.
+harness migrate status
+harness migrate resume migration-0123456789abcdef
+```
+
+Для automation каждая migration-команда поддерживает `--json`.
+
+`migrate plan` возвращает exit code `2`, если migration корректно проанализирована, но заблокирована safety/preflight условиями. Execution/parsing/corruption errors используют exit code `1`.
+
+`apply` **не выполняет re-plan**. Он принимает только `status=ready` plan, сохранённый через `migrate plan --out`, повторно проверяет project identity, Git HEAD, per-operation preconditions и immutable target release digest.
+
+Текущая compatibility floor совпадает с current repository-embedded baseline: поддерживается только Harness **v0.10.4**. Более ранние версии fail-closed с `UNSUPPORTED_LEGACY_RELEASE` до появления отдельного immutable compatibility descriptor.
+
 
 `setup` выполняет read-only preflight закреплённого release до первой записи в проект. Если release отсутствует, повреждён или несовместим с текущим CLI/Host API/project schema, setup завершается ошибкой и не создаёт частично настроенный Harness project.
 
