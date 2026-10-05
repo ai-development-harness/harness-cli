@@ -73,6 +73,20 @@ describe('filesystem path boundaries', () => {
     expect(resolved).toBe(path.resolve(root, 'inside-link', 'new-file.txt'));
   });
 
+  it('supports a not-yet-created boundary when its existing ancestors are safe', async () => {
+    const { root } = await fixture();
+    const futureBoundary = path.join(root, 'clone-local-state');
+
+    const resolved = await resolvePortablePathWithinBoundary(
+      futureBoundary,
+      'migrations/migration-123/plan.json',
+      'future state target',
+    );
+    expect(resolved).toBe(
+      path.resolve(futureBoundary, 'migrations', 'migration-123', 'plan.json'),
+    );
+  });
+
   it('allows a missing target when its nearest existing ancestor is inside the boundary', async () => {
     const { root } = await fixture();
     const resolved = await resolvePortablePathWithinBoundary(
