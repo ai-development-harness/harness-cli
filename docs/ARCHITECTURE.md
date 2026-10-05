@@ -482,6 +482,33 @@ Report
 
 Migration должна сохранять unknown/customized files до явного разрешения конфликта.
 
+### 11.1 Worktree-scoped migration execution lock
+
+Mutating migration execution сериализуется отдельно от durable checkpoint.
+
+Lock хранится в Git-private Harness state конкретного worktree:
+
+```text
+<git-private-ai-harness>/migration-execution.lock.json
+```
+
+Его назначение — только coordination текущего процесса:
+
+- не более одного mutating `apply/resume` на worktree;
+- атомарный acquisition без ожидания;
+- machine-readable owner identity (`migrationId`, mode, PID, host, acquisition time);
+- local stale detection по process liveness;
+- автоматический stale takeover;
+- linked Git worktrees используют независимые lock paths через Git.
+
+Lock не является source of truth recovery. После crash durable `migrations/<migrationId>/` checkpoint определяет, что можно resume/recover. Новый saved plan не может обойти существующий unfinished checkpoint другой migration.
+
+Если lock принадлежит другому hostname, Core не пытается угадывать remote PID liveness и fail-closed считает owner активным. Это намеренно безопаснее произвольного TTL takeover.
+
+Для stale takeover используется token-specific hard-link claim. Он не позволяет двум reclaimers одновременно удалить одну и ту же lock generation. Crashed reclaim claim имеет ограниченный recovery timeout и не должен блокировать worktree навсегда.
+
+Связанные требования: `CLI-REQ-125`, `CLI-REQ-146`, `CLI-REQ-147`, `CLI-REQ-211`, `CLI-REQ-220`.
+
 Подробная ownership/migration policy относится к issue #7 и `docs/MIGRATION.md`.
 
 ## 12. Runtime boundary

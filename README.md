@@ -55,7 +55,7 @@ Harness CLI
 - `harness migrate inspect` — read-only инспекция legacy/thin состояния;
 - `harness migrate plan` — read-only dry-run и построение prepared migration plan;
 - `harness migrate apply --plan <file>` — применение только ранее сохранённого exact plan;
-- `harness migrate status [migration-id]` — checkpoint/recovery diagnostics;
+- `harness migrate status [migration-id]` — checkpoint/recovery и worktree execution-lock diagnostics;
 - `harness migrate resume <migration-id>` — безопасное продолжение прерванной migration.
 
 В Core также реализованы:
@@ -146,7 +146,7 @@ harness migrate resume migration-0123456789abcdef
 
 `migrate plan` возвращает exit code `2`, если migration корректно проанализирована, но заблокирована safety/preflight условиями. Execution/parsing/corruption errors используют exit code `1`.
 
-`apply` **не выполняет re-plan**. Он принимает только `status=ready` plan, сохранённый через `migrate plan --out`, повторно проверяет project identity, Git HEAD, per-operation preconditions и immutable target release digest.
+`apply` **не выполняет re-plan**. Он принимает только `status=ready` plan, сохранённый через `migrate plan --out`, повторно проверяет project identity, Git HEAD, per-operation preconditions и immutable target release digest. `apply` и `resume` сериализованы одним worktree-scoped execution lock в Git-private `ai-harness`; конкурентный mutating запуск завершается сразу с machine-readable `MIGRATION_LOCK_ACTIVE`, а `status --json` показывает состояние lock.
 
 Текущая compatibility floor совпадает с current repository-embedded baseline: поддерживается только Harness **v0.10.4**. Более ранние версии fail-closed с `UNSUPPORTED_LEGACY_RELEASE` до появления отдельного immutable compatibility descriptor.
 

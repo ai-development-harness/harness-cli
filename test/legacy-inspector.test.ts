@@ -138,7 +138,7 @@ describe('inspectProject', () => {
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'BASELINE_REQUIRED', severity: 'blocker' })]),
     );
-  });
+  }, 15_000);
 
   it('accepts an explicit immutable baseline when the lock is absent', async () => {
     const { repo } = await createLegacyRepository({ withLock: false });

@@ -15,6 +15,10 @@ export type MigrationExecutionErrorCode =
   | 'PLAN_STALE'
   | 'MIGRATION_CHECKPOINT_EXISTS'
   | 'MIGRATION_CHECKPOINT_MISSING'
+  | 'MIGRATION_LOCK_ACTIVE'
+  | 'MIGRATION_LOCK_CORRUPT'
+  | 'MIGRATION_LOCK_RECOVERY_IN_PROGRESS'
+  | 'MIGRATION_LOCK_LOST'
   | 'CHECKPOINT_PLAN_CORRUPT'
   | 'JOURNAL_CORRUPT'
   | 'JOURNAL_INCONSISTENT'
@@ -103,6 +107,7 @@ export interface MigrationExecutorHooks {
 export interface MigrationExecutorDependencies {
   handlers?: MigrationOperationHandlers;
   hooks?: MigrationExecutorHooks;
+  beforeCheckpoint?(plan: MigrationPlan, projectRoot: string): Promise<void> | void;
   now?: () => Date;
   releaseStore?: ReleaseStore;
 }

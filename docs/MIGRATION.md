@@ -681,7 +681,47 @@ Exit codes migration CLI:
 
 На текущем этапе earliest supported и current repository-embedded baseline совпадают: `0.10.4`. Intermediate supported release отсутствует, поэтому regression suite не создаёт фиктивные compatibility claims.
 
-E2E matrix покрывает clean migration, explicit baseline adoption, mismatch, modified Harness-owned/shared paths, project skill preservation, dirty/untracked conflicts, interruption/resume, stale/tampered/incomplete saved plan, late target collision, preserved tracked deletion, corrupt checkpoint, active execution, idempotency и Git worktree. CI выполняет suite на Linux, macOS и Windows; portable paths дополнительно проверяются независимо от host separator.
+E2E matrix покрывает clean migration, explicit baseline adoption, mismatch, modified Harness-owned/shared paths, project skill preservation, dirty/untracked conflicts, interruption/resume, stale/tampered/incomplete saved plan, late target collision, preserved tracked deletion, corrupt checkpoint, active execution, idempotency, concurrent apply/resume, stale execution-lock recovery и Git worktree. CI выполняет suite на Linux, macOS и Windows; portable paths и lock semantics проверяются на всех трёх платформах.
+
+## 20.4 Worktree-scoped execution serialization
+
+Issue #26 добавляет ephemeral execution lock поверх durable checkpoint model.
+
+Lock path:
+
+```text
+<git-private-ai-harness>/migration-execution.lock.json
+```
+
+Lock record содержит:
+
+- schema version;
+- уникальный owner token;
+- `migrationId`;
+- mode: `apply` или `resume`;
+- PID;
+- hostname;
+- acquisition timestamp.
+
+Семантика:
+
+- `apply` и `resume` используют один lock scope на конкретный Git worktree;
+- acquisition атомарный и не ждёт освобождения;
+- второй mutating process получает `MIGRATION_LOCK_ACTIVE`;
+- `status` остаётся read-only и показывает `none | active | stale | corrupt`;
+- lock освобождается в `finally` при обычном success/error;
+- после настоящего process crash local PID становится stale и следующий mutating запуск может выполнить controlled takeover;
+- corrupt lock не удаляется автоматически и блокирует mutation fail-closed;
+- owner с другого hostname считается active, потому что portable Core не может доказать remote process liveness;
+- linked Git worktrees получают независимые lock files через `git rev-parse --git-path ai-harness`.
+
+Stale takeover использует token-specific hard-link claim. Reclaimer повторно проверяет owner token и stale state перед unlink старой generation. Если другой process уже выполняет reclaim/acquisition, команда получает structured concurrency diagnostic вместо ожидания.
+
+Execution lock **не заменяет checkpoint**. После crash:
+
+1. lock отвечает только на вопрос «есть ли сейчас владелец mutating execution»;
+2. checkpoint отвечает на вопрос «какие операции уже применены/verified и что разрешено resume»;
+3. если stale owner оставил checkpoint другой migration, новый saved plan не может его обойти — сначала требуется resume/recovery существующего checkpoint.
 
 ## 21. Checkpoint и interruption safety
 
@@ -836,7 +876,11 @@ Migration должна различать как минимум:
 - `PATH_BOUNDARY_UNAVAILABLE`;
 - `PLAN_STALE`;
 - `POSTCONDITION_FAILED`;
-- `MIGRATION_IN_PROGRESS`.
+- `MIGRATION_IN_PROGRESS`;
+- `MIGRATION_LOCK_ACTIVE`;
+- `MIGRATION_LOCK_CORRUPT`;
+- `MIGRATION_LOCK_RECOVERY_IN_PROGRESS`;
+- `MIGRATION_LOCK_LOST`.
 
 Названия кодов могут быть уточнены implementation contract, но категории должны оставаться различимыми.
 

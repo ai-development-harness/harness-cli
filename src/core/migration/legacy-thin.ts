@@ -844,12 +844,16 @@ export async function executeLegacyThinMigration(
     return { status: 'already-migrated', mutations: 0, projectRoot: preparation.projectRoot };
   }
   if (preparation.status === 'blocked') throw new Error('Legacy thin migration plan is blocked.');
-  await assertPreparedLegacyThinPlan(preparation.plan);
   const store = dependencies.releaseStore ?? new ReleaseStore();
+  const callerPreflight = dependencies.beforeCheckpoint;
   const result = await executeMigration(preparation.plan, {
     ...dependencies,
     releaseStore: store,
     handlers: { ...legacyThinOperationHandlers(store), ...(dependencies.handlers ?? {}) },
+    beforeCheckpoint: async (plan, projectRoot) => {
+      await assertPreparedLegacyThinPlan(plan);
+      await callerPreflight?.(plan, projectRoot);
+    },
   });
   const finalInspection = await inspectProject(preparation.plan.source.projectRoot ?? '');
   if (finalInspection.state !== 'thin-harness-current') {

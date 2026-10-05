@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { link, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { link, mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveHarnessStatePath } from '../git.js';
 import { serializeMigrationPlan } from './planner.js';
@@ -220,6 +220,24 @@ function validateJournalAgainstPlan(plan: MigrationPlan, journal: MigrationJourn
         journaled: { id: journaled.id, kind: journaled.kind, path: journaled.path },
       });
     }
+  }
+}
+
+export async function listMigrationCheckpointIds(projectRoot: string): Promise<string[]> {
+  const root = await resolveHarnessStatePath(
+    projectRoot,
+    'migrations',
+    'migration checkpoint inventory',
+  );
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
   }
 }
 
