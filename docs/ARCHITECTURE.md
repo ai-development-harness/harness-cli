@@ -148,6 +148,34 @@ Release resolver не имеет права молча выбирать `latest`
 
 Связанные требования: `CLI-REQ-100`–`CLI-REQ-109`, `CLI-REQ-242`.
 
+### 4.5.1 Core Host Module
+
+Core Host — bootstrap boundary между текущим CLI package и release-owned executable Core.
+
+Он отвечает только за:
+
+1. canonicalization явного `projectRoot`;
+2. чтение project pin/schema из `harness.yaml`;
+3. resolution exact pinned release через `ReleaseStore/ReleaseResolver`;
+4. Host API compatibility gate;
+5. containment declared `entrypoints.core`;
+6. import verified ESM entrypoint;
+7. runtime validation `harnessCore.hostApiVersion`;
+8. формирование typed request/result/error envelope;
+9. dependency injection runtime-neutral `filesystem`, `git`, `storage` ports.
+
+Core Host не:
+
+- выбирает latest release;
+- скачивает release как fallback;
+- запускает install/bootstrap/hooks lifecycle scripts;
+- передаёт Commander/UI objects в Core;
+- разрешает Core самостоятельно определять project root из cwd.
+
+Host API v1 и module/result contract нормативно описаны в `docs/DISTRIBUTION.md`.
+
+Связанные требования: `CLI-REQ-012`–`CLI-REQ-015`, `CLI-REQ-100`–`CLI-REQ-109`, `CLI-REQ-225`, `CLI-REQ-242`.
+
 ### 4.6 Migration Module
 
 Отвечает за transition существующего project state между schema/ownership models.
@@ -329,6 +357,44 @@ Output:
 - либо typed resolution error.
 
 Silent fallback запрещён.
+
+### 7.5.1 CoreHost
+
+`CoreHost` загружает только уже resolved/verified release-owned Core.
+
+Public bootstrap operation:
+
+```text
+loadPinnedCore({
+  projectRoot,
+  releaseStore,
+  ports,
+  cliVersion
+})
+```
+
+Результат — immutable descriptor + `invoke(operation, input)`.
+
+Descriptor явно различает:
+
+- Host API version;
+- canonical project root;
+- project schema version;
+- Harness release;
+- release digest;
+- CLI package version.
+
+`invoke` создаёт Host API v1 request с уникальным `requestId`. Core response принимается только если schema, Host API version, requestId и version identity совпадают с host-created request.
+
+Thrown Core exception переводится в typed `CORE_EXECUTION_FAILED`; malformed response — в `CORE_INVALID_RESPONSE`.
+
+Ports v1:
+
+- `filesystem`;
+- `git`;
+- `storage`.
+
+Каждый port представляет runtime-neutral `call({ operation, input })` boundary. Конкретная инфраструктура может меняться без импорта Commander/UI/runtime SDK в release-owned Core.
 
 ### 7.6 MigrationPlanner / MigrationExecutor
 
@@ -541,7 +607,7 @@ CLI/Core не предполагает, что runtime обязан запуск
 
 ## 14. Текущая реализация и целевая архитектура
 
-Существующий код пока содержит небольшой bootstrap:
+Существующий код содержит bootstrap и первый release-owned execution boundary:
 
 ```text
 src/cli.ts
@@ -549,7 +615,15 @@ src/commands/*
 src/core/config.ts
 src/core/git.ts
 src/core/paths.ts
+src/core/releases/*
+src/core/host/
+  contract.ts
+  errors.ts
+  loader.ts
+  index.ts
 ```
+
+`src/core/host` является Host API v1 implementation: он разрешает exact project pin, проверяет compatibility/integrity и загружает declared Core entrypoint. Сам canonical command/protocol behavior будет переноситься в release-owned Core следующими Stage 4 issues.
 
 Это допустимо для текущего этапа.
 
