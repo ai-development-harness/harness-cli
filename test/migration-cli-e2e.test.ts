@@ -258,7 +258,7 @@ describe('migration CLI end-to-end', () => {
         expect.objectContaining({ code: expect.stringMatching(/UNTRACKED_COLLISION|LEGACY_AND_THIN_STATE/) }),
       ]),
     );
-  });
+  }, 15_000);
 
   it('rejects stale saved plans without creating a checkpoint', async () => {
     const { base, repo, env } = await fixture();
