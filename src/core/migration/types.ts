@@ -65,6 +65,7 @@ export interface LegacyMetadataSummary {
 export interface ProjectInspectionResult {
   state: ProjectInspectionState;
   projectRoot: string | null;
+  headSha: string | null;
   gitDir: string | null;
   commonGitDir: string | null;
   cloneLocalHarnessPath: string | null;
