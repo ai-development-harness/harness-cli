@@ -57,10 +57,32 @@ export async function atomicWriteText(target: string, content: string): Promise<
   }
 }
 
+export async function exclusiveWriteText(target: string, content: string): Promise<void> {
+  await mkdir(path.dirname(target), { recursive: true });
+  const handle = await open(target, 'wx');
+  try {
+    await handle.writeFile(content, 'utf8');
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await syncDirectory(path.dirname(target));
+}
+
+function assertSafeMigrationId(migrationId: string): void {
+  if (
+    migrationId.length > 128 ||
+    !/^migration-[A-Za-z0-9][A-Za-z0-9._-]*$/.test(migrationId)
+  ) {
+    throw new MigrationExecutionError('PLAN_INVALID', 'Unsafe migration id.', { migrationId });
+  }
+}
+
 export async function migrationCheckpointPaths(
   projectRoot: string,
   migrationId: string,
 ): Promise<MigrationCheckpointPaths> {
+  assertSafeMigrationId(migrationId);
   const stateRoot = await harnessStatePath(projectRoot);
   const root = path.join(stateRoot, 'migrations', migrationId);
   return {
