@@ -311,7 +311,7 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(preparation.plan.blockers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'PROJECT_SCHEMA_CONFLICT',
+          code: 'PATH_LEXICAL_ESCAPE',
           paths: ['.harness/manifest.yaml'],
         }),
       ]),
