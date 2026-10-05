@@ -156,6 +156,8 @@ protocol:
 
 Каноническая архитектура находится в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+Контракт миграции legacy repository-embedded проектов находится в [`docs/MIGRATION.md`](docs/MIGRATION.md).
+
 Текущая последовательность этапа формализации:
 
 1. продуктовые требования — `docs/PRODUCT_REQUIREMENTS.md`;
