@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { findGitRoot } from '../git.js';
+import { findGitRoot, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { ReleaseStore } from '../releases/store.js';
 import type { MigrationPlan, MigrationPlanOperation } from './plan-types.js';
 import {
@@ -73,20 +73,6 @@ async function fileExists(target: string): Promise<boolean> {
   }
 }
 
-async function workingTreeBlobSha1(projectRoot: string, portablePath: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['hash-object', '--no-filters', '--', portablePath],
-      { cwd: projectRoot, encoding: 'utf8' },
-    );
-    const value = stdout.trim();
-    return /^[0-9a-f]{40}$/.test(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 async function assertOperationPrecondition(
   projectRoot: string,
   operation: MigrationPlanOperation,
@@ -127,7 +113,7 @@ async function assertOperationPrecondition(
       return;
     }
     case 'git-blob-sha1': {
-      const actual = await workingTreeBlobSha1(projectRoot, operation.path);
+      const actual = await trackedWorkingTreeBlobSha1(projectRoot, operation.path);
       if (actual !== operation.precondition.value) {
         throw new MigrationExecutionError('PLAN_STALE', `Git blob precondition changed: ${operation.path}.`, {
           operationId: operation.id,
@@ -145,10 +131,10 @@ async function assertProjectIdentity(plan: MigrationPlan): Promise<string> {
   if (plan.source.projectRoot === null) {
     throw new MigrationExecutionError('PLAN_INVALID', 'Migration plan has no source project root.');
   }
-  const plannedRoot = path.resolve(plan.source.projectRoot);
+  const plannedRoot = await realpath(path.resolve(plan.source.projectRoot));
   let actualRoot: string;
   try {
-    actualRoot = path.resolve(await findGitRoot(plannedRoot));
+    actualRoot = await realpath(await findGitRoot(plannedRoot));
   } catch (error) {
     throw new MigrationExecutionError('PROJECT_IDENTITY_MISMATCH', 'Planned project is no longer a Git repository.', {
       plannedRoot,
@@ -267,7 +253,6 @@ async function assertTargetRelease(plan: MigrationPlan, dependencies: MigrationE
 
 async function assertInitialPreconditions(plan: MigrationPlan, projectRoot: string): Promise<void> {
   for (const operation of plan.operations) {
-    if (!operation.mutates) continue;
     await assertOperationPrecondition(projectRoot, operation);
   }
 }
@@ -360,6 +345,15 @@ async function executePendingOperation(
 ): Promise<void> {
   try {
     await assertOperationPrecondition(projectRoot, operation);
+  } catch (error) {
+    if (error instanceof MigrationExecutionError) {
+      await markRecoveryRequired(checkpoint, error, operation.id, dependencies);
+    }
+    throw error;
+  }
+
+  try {
+    await handler.preflight?.(operationContext(checkpoint, operation, projectRoot));
   } catch (error) {
     if (error instanceof MigrationExecutionError) {
       await markRecoveryRequired(checkpoint, error, operation.id, dependencies);

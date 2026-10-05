@@ -10,6 +10,7 @@ export {
   executeLegacyThinMigration,
   legacyThinOperationHandlers,
   prepareLegacyThinMigration,
+  resumeLegacyThinMigration,
 } from './legacy-thin.js';
 export type {
   LegacyThinMigrationDependencies,

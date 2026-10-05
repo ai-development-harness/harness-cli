@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -252,9 +252,49 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(report).toContain('CUSTOM.md');
 
     const second = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
-    expect(second).toEqual({ status: 'already-migrated', projectRoot: repo });
+    const canonicalRepo = await realpath(repo);
+    expect(second).toEqual({ status: 'already-migrated', projectRoot: canonicalRepo });
     const secondResult = await executeLegacyThinMigration(second, { releaseStore: store });
-    expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: repo });
+    expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: canonicalRepo });
+  }, 30_000);
+
+  it('preserves a tracked project-owned deletion that existed at planning time', async () => {
+    const { base, repo } = await createLegacyFixture();
+    const store = await installedStore(base);
+    await rm(path.join(repo, 'CUSTOM.md'));
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('ready');
+    if (preparation.status !== 'ready') throw new Error('expected ready migration');
+
+    expect(
+      preparation.plan.operations.find((operation) => operation.path === 'CUSTOM.md')?.precondition,
+    ).toEqual({ kind: 'absent' });
+
+    const result = await executeLegacyThinMigration(preparation, { releaseStore: store });
+    expect(result.status).toBe('completed');
+    await expect(readFile(path.join(repo, 'CUSTOM.md'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  }, 20_000);
+
+  it('accepts CRLF-only platform checkout changes in supported bootstrap files', async () => {
+    const { base, repo } = await createLegacyFixture();
+    const store = await installedStore(base);
+    await git(repo, ['config', 'core.autocrlf', 'false']);
+
+    for (const relativePath of ['AGENTS.md', 'CLAUDE.md']) {
+      const target = path.join(repo, relativePath);
+      const source = await readFile(target, 'utf8');
+      await writeFile(target, source.replace(/\r?\n/g, '\r\n'), 'utf8');
+    }
+    await git(repo, ['add', 'AGENTS.md', 'CLAUDE.md']);
+    await git(repo, ['commit', '-m', 'simulate CRLF checkout']);
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('ready');
+    if (preparation.status !== 'ready') {
+      throw new Error(JSON.stringify(preparation.plan.blockers));
+    }
   });
 
   it('blocks target project paths that escape the repository before mutation', async () => {

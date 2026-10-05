@@ -192,9 +192,13 @@ async function inspectLegacyExecutionState(projectRoot: string): Promise<LegacyE
 }
 
 function trackedPrecondition(entry: LegacyFileOwnership): MigrationPlanOperation['precondition'] {
-  return entry.actualBlobSha1
-    ? { kind: 'git-blob-sha1', value: entry.actualBlobSha1 }
-    : { kind: 'none' };
+  if (entry.actualBlobSha1) {
+    return { kind: 'git-blob-sha1', value: entry.actualBlobSha1 };
+  }
+  if (entry.dirty) {
+    return { kind: 'absent' };
+  }
+  return { kind: 'none' };
 }
 
 function sharedOperation(entry: LegacyFileOwnership): MigrationPlanOperation {
