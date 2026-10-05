@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
-import { assertAbsolutePathWithinBoundary } from './path-boundary.js';
+import { assertAbsolutePathWithinBoundary, resolvePortablePathWithinBoundary } from './path-boundary.js';
 import { z } from 'zod';
 
 const languageSchema = z.string().min(2);
@@ -126,11 +126,27 @@ export function configPath(projectRoot: string): string {
   return path.join(projectRoot, 'harness.yaml');
 }
 
+export async function assertConfigPathBoundaries(
+  projectRoot: string,
+  config: HarnessConfig,
+): Promise<void> {
+  const configuredPaths: Array<[string, string]> = [
+    ...Object.entries(config.sources).map(([key, value]) => [`sources.${key}`, value] as [string, string]),
+    ...Object.entries(config.protocol).map(([key, value]) => [`protocol.${key}`, value] as [string, string]),
+  ];
+
+  for (const [label, portablePath] of configuredPaths) {
+    await resolvePortablePathWithinBoundary(projectRoot, portablePath, label);
+  }
+}
+
 export async function readConfig(projectRoot: string): Promise<HarnessConfig> {
   const target = configPath(projectRoot);
   await assertAbsolutePathWithinBoundary(projectRoot, target, 'harness.yaml');
   const raw = await readFile(target, 'utf8');
-  return harnessConfigSchema.parse(YAML.parse(raw));
+  const config = harnessConfigSchema.parse(YAML.parse(raw));
+  await assertConfigPathBoundaries(projectRoot, config);
+  return config;
 }
 
 export async function writeConfig(
@@ -140,6 +156,7 @@ export async function writeConfig(
 ): Promise<void> {
   const target = configPath(projectRoot);
   await assertAbsolutePathWithinBoundary(projectRoot, target, 'harness.yaml');
+  await assertConfigPathBoundaries(projectRoot, config);
   await writeFile(target, YAML.stringify(config), {
     encoding: 'utf8',
     flag: options.exclusive ? 'wx' : 'w',
