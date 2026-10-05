@@ -561,6 +561,24 @@ verification:
 
 Каждая mutation operation должна быть адресной. Не допускаются абстрактные операции вида `delete .harness` без enumerated affected paths.
 
+## 19.1 Текущая implementation model плана
+
+Issue #16 реализует `MigrationPlan schemaVersion: 1` как полностью structured read-only результат.
+
+План содержит:
+
+- детерминированный `migrationId`;
+- source project identity и Git HEAD;
+- доказанный historical baseline;
+- target Harness release/schema/digest;
+- адресные operations с phase и precondition;
+- blockers и warnings;
+- deterministic verification steps.
+
+Для tracked mutation precondition использует Git blob SHA текущих working-tree bytes; для legacy operational state — SHA-256 bytes. Поэтому будущий Executor может обнаруживать stale plan без повторного принятия ownership-решений.
+
+`planMigration()` не сохраняет plan автоматически и не изменяет repository. Persist/checkpoint относится к MigrationExecutor (#17).
+
 ## 20. Типы операций
 
 Минимальный набор semantic actions:

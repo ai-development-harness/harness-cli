@@ -70,14 +70,16 @@ function resolveGitPath(root: string, value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(root, value);
 }
 
-async function gitDirectories(root: string): Promise<{ gitDir: string; commonGitDir: string }> {
-  const [gitDir, commonGitDir] = await Promise.all([
+async function gitMetadata(root: string): Promise<{ gitDir: string; commonGitDir: string; headSha: string | null }> {
+  const [gitDir, commonGitDir, headSha] = await Promise.all([
     git(root, ['rev-parse', '--git-dir']),
     git(root, ['rev-parse', '--git-common-dir']),
+    git(root, ['rev-parse', 'HEAD']).catch(() => null),
   ]);
   return {
     gitDir: resolveGitPath(root, gitDir.trim()),
     commonGitDir: resolveGitPath(root, commonGitDir.trim()),
+    headSha: headSha?.trim() ?? null,
   };
 }
 
@@ -385,7 +387,12 @@ async function classifyOwnership(
         path: filePath,
         classification: 'shared-customized',
         expectedBlobSha1: null,
-        actualBlobSha1: inventory.indexBlobSha1.get(filePath) ?? null,
+        actualBlobSha1: await workingTreeBlobSha1(
+          root,
+          filePath,
+          inventory.indexBlobSha1.get(filePath),
+          dirty.has(filePath),
+        ),
         dirty: dirty.has(filePath),
       });
       continue;
@@ -417,7 +424,12 @@ async function classifyOwnership(
         path: filePath,
         classification: 'project-owned',
         expectedBlobSha1: null,
-        actualBlobSha1: inventory.indexBlobSha1.get(filePath) ?? null,
+        actualBlobSha1: await workingTreeBlobSha1(
+          root,
+          filePath,
+          inventory.indexBlobSha1.get(filePath),
+          dirty.has(filePath),
+        ),
         dirty: dirty.has(filePath),
       });
       continue;
@@ -427,7 +439,12 @@ async function classifyOwnership(
       path: filePath,
       classification: 'unknown',
       expectedBlobSha1: null,
-      actualBlobSha1: inventory.indexBlobSha1.get(filePath) ?? null,
+      actualBlobSha1: await workingTreeBlobSha1(
+        root,
+        filePath,
+        inventory.indexBlobSha1.get(filePath),
+        dirty.has(filePath),
+      ),
       dirty: dirty.has(filePath),
     });
   }
@@ -506,6 +523,7 @@ export async function inspectProject(
     return {
       state: 'not-git',
       projectRoot: null,
+      headSha: null,
       gitDir: null,
       commonGitDir: null,
       cloneLocalHarnessPath: null,
@@ -520,8 +538,8 @@ export async function inspectProject(
     };
   }
 
-  const [{ gitDir, commonGitDir }, inventory, cloneLocalHarnessPath] = await Promise.all([
-    gitDirectories(root),
+  const [{ gitDir, commonGitDir, headSha }, inventory, cloneLocalHarnessPath] = await Promise.all([
+    gitMetadata(root),
     inspectGitInventory(root),
     harnessStatePath(root),
   ]);
@@ -543,6 +561,7 @@ export async function inspectProject(
       return {
         state: 'migration-in-progress',
         projectRoot: root,
+        headSha,
         gitDir,
         commonGitDir,
         cloneLocalHarnessPath,
@@ -561,6 +580,7 @@ export async function inspectProject(
       return {
         state: 'git-non-harness',
         projectRoot: root,
+        headSha,
         gitDir,
         commonGitDir,
         cloneLocalHarnessPath,
@@ -580,6 +600,7 @@ export async function inspectProject(
       return {
         state: 'thin-harness-current',
         projectRoot: root,
+        headSha,
         gitDir,
         commonGitDir,
         cloneLocalHarnessPath,
@@ -597,6 +618,7 @@ export async function inspectProject(
       return {
         state: 'thin-harness-invalid',
         projectRoot: root,
+        headSha,
         gitDir,
         commonGitDir,
         cloneLocalHarnessPath,
@@ -620,6 +642,7 @@ export async function inspectProject(
     return {
       state: migrationInProgress ? 'migration-in-progress' : 'legacy-harness-unsupported',
       projectRoot: root,
+      headSha,
       gitDir,
       commonGitDir,
       cloneLocalHarnessPath,
@@ -681,6 +704,7 @@ export async function inspectProject(
   return {
     state,
     projectRoot: root,
+    headSha,
     gitDir,
     commonGitDir,
     cloneLocalHarnessPath,
