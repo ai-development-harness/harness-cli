@@ -137,9 +137,15 @@ protocol:
   skillRegistry: docs/skills/REGISTRY.md
 ```
 
-## Next implementation slices
+## Roadmap
 
-1. External Harness release store and immutable release resolution.
-2. Migration from repository-embedded Harness projects.
-3. Runtime integration contract that preserves runtime-owned interactive sessions.
-4. Local API/MCP surface shared by CLI, UI and editor integrations.
+The canonical implementation plan is maintained in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+The next planned slice is **formalizing the product contract** before further expansion of the implementation:
+
+1. `docs/PRODUCT_REQUIREMENTS.md` with stable `CLI-REQ-XXX` requirements;
+2. `docs/ARCHITECTURE.md` with module and ownership boundaries;
+3. `docs/MIGRATION.md` for transition from repository-embedded Harness projects;
+4. then immutable Harness Release Store / Resolver.
+
+The roadmap deliberately does **not** assume that a GUI will exist. CLI/Core should expose reusable machine-readable integration surfaces for editor integrations and other external tools without making any particular client mandatory.
