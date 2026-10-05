@@ -29,6 +29,25 @@ const PROJECT_CONTEXT_END = '<!-- PROJECT-CONTEXT:END -->';
 const SKILL_ROUTING_START = '<!-- SKILL-ROUTING:START -->';
 const SKILL_ROUTING_END = '<!-- SKILL-ROUTING:END -->';
 
+const MIGRATION_PHASE_ORDER: Readonly<Record<MigrationPlan['operations'][number]['phase'], number>> = {
+  prepare: 0,
+  'local-state': 1,
+  'project-contract': 2,
+  bootstrap: 3,
+  preserve: 4,
+  cleanup: 5,
+  finalize: 6,
+};
+
+const EXPECTED_PHASE_BY_KIND: Readonly<Partial<Record<MigrationPlan['operations'][number]['kind'], MigrationPlan['operations'][number]['phase']>>> = {
+  PRESERVE: 'preserve',
+  TRANSFORM: 'project-contract',
+  REPLACE_GENERATED_BLOCK: 'bootstrap',
+  DELETE_HARNESS_OWNED_CLEAN: 'cleanup',
+  MIGRATE_LOCAL_STATE: 'local-state',
+  CREATE: 'finalize',
+};
+
 function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -621,8 +640,29 @@ async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> 
     `planning/audits/MIGRATION-${plan.migrationId.replace(/^migration-/, '')}.md`;
   let reportOperations = 0;
   let localStateOperations = 0;
+  let previousPhaseOrder = -1;
   const seenPaths = new Set<string>();
-  for (const operation of plan.operations) {
+  for (let index = 0; index < plan.operations.length; index += 1) {
+    const operation = plan.operations[index];
+    const expectedId = `op-${String(index + 1).padStart(4, '0')}`;
+    if (operation.id !== expectedId) {
+      throw new Error(
+        `Saved migration plan operation order/id is inconsistent: expected ${expectedId}, got ${operation.id}.`,
+      );
+    }
+    const expectedPhase = EXPECTED_PHASE_BY_KIND[operation.kind];
+    if (expectedPhase === undefined || operation.phase !== expectedPhase) {
+      throw new Error(
+        `Saved migration plan operation has an invalid phase: ${operation.id} (${operation.kind} / ${operation.phase}).`,
+      );
+    }
+    const phaseOrder = MIGRATION_PHASE_ORDER[operation.phase];
+    if (phaseOrder < previousPhaseOrder) {
+      throw new Error(
+        `Saved migration plan operations are not in canonical phase order at ${operation.id}.`,
+      );
+    }
+    previousPhaseOrder = phaseOrder;
     if (seenPaths.has(operation.path)) {
       throw new Error(`Saved migration plan contains duplicate operation path: ${operation.path}.`);
     }
