@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
+import { isPathBoundaryError, resolvePortablePathWithinBoundary } from '../core/path-boundary.js';
 import {
   executeLegacyThinMigration,
   inspectMigrationCheckpoint,
@@ -30,6 +31,9 @@ function errorPayload(error: unknown): {
   details: Readonly<Record<string, unknown>>;
 } {
   if (isMigrationExecutionError(error)) {
+    return { code: error.code, message: error.message, details: error.details };
+  }
+  if (isPathBoundaryError(error)) {
     return { code: error.code, message: error.message, details: error.details };
   }
   return {
@@ -262,7 +266,8 @@ async function checkpointDiagnostic(projectRoot: string, migrationId: string): P
 }
 
 async function checkpointIds(projectRoot: string): Promise<string[]> {
-  const root = path.join(await harnessStatePath(projectRoot), 'migrations');
+  const stateRoot = await harnessStatePath(projectRoot);
+  const root = await resolvePortablePathWithinBoundary(stateRoot, 'migrations', 'migration checkpoint inventory');
   try {
     const entries = await readdir(root, { withFileTypes: true });
     return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
