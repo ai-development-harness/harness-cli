@@ -133,6 +133,8 @@ Application service координирует Core-компоненты, но н�
 
 ### 4.5 Release Module
 
+Канонический формат release tree и metadata определён в `docs/DISTRIBUTION.md`.
+
 Отвечает за:
 
 - формат Harness Distribution metadata;
@@ -407,7 +409,7 @@ config/
 cache/
 ```
 
-Конкретный release layout определяется в issue #8, а не этим документом.
+Конкретный release layout и формат `release.json` определены в `docs/DISTRIBUTION.md`.
 
 ## 10. Release resolver boundary
 
