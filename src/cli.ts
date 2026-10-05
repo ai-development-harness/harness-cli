@@ -6,6 +6,13 @@ import {
   releaseListCommand,
   releaseVerifyCommand,
 } from './commands/release.js';
+import {
+  migrationApplyCommand,
+  migrationInspectCommand,
+  migrationPlanCommand,
+  migrationResumeCommand,
+  migrationStatusCommand,
+} from './commands/migrate.js';
 import { setupCommand } from './commands/setup.js';
 import { statusCommand } from './commands/status.js';
 import { validateCommand } from './commands/validate.js';
@@ -37,6 +44,57 @@ program
   .command('status')
   .description('Show Harness project status')
   .action(() => statusCommand(process.cwd()));
+
+const migrate = program
+  .command('migrate')
+  .description('Inspect, plan and execute legacy Harness migrations');
+
+migrate
+  .command('inspect')
+  .description('Inspect the current repository for legacy Harness migration')
+  .option('--from <release>', 'Explicit legacy baseline release, for example v0.10.4')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { from?: string; json?: boolean }) =>
+    migrationInspectCommand(process.cwd(), options),
+  );
+
+migrate
+  .command('plan')
+  .description('Build a read-only prepared migration plan')
+  .option('--from <release>', 'Explicit legacy baseline release, for example v0.10.4')
+  .option('--target-release <release>', 'Explicit target Harness release')
+  .option('--out <file>', 'Persist the exact prepared plan for a later apply')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { from?: string; targetRelease?: string; out?: string; json?: boolean }) =>
+    migrationPlanCommand(process.cwd(), options),
+  );
+
+migrate
+  .command('apply')
+  .description('Apply an exact previously saved migration plan')
+  .requiredOption('--plan <file>', 'Prepared migration plan created by migrate plan --out')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { plan: string; json?: boolean }) =>
+    migrationApplyCommand(process.cwd(), options.plan, options.json ?? false),
+  );
+
+migrate
+  .command('resume')
+  .description('Resume an interrupted migration checkpoint')
+  .argument('<migration-id>', 'Migration checkpoint id')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((migrationId: string, options: { json?: boolean }) =>
+    migrationResumeCommand(process.cwd(), migrationId, options.json ?? false),
+  );
+
+migrate
+  .command('status')
+  .description('Show migration checkpoint/recovery diagnostics')
+  .argument('[migration-id]', 'Optional migration checkpoint id')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((migrationId: string | undefined, options: { json?: boolean }) =>
+    migrationStatusCommand(process.cwd(), migrationId, options.json ?? false),
+  );
 
 const release = program
   .command('release')
