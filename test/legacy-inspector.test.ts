@@ -242,7 +242,7 @@ describe('inspectProject', () => {
 
     const result = await inspectProject(path.join(worktree, 'src'));
     expect(result.state).toBe('legacy-harness-supported');
-    expect(result.projectRoot).toBe(worktree);
+    expect(result.projectRoot).toBe(await realpath(worktree));
     expect(result.gitDir).not.toBe(result.commonGitDir);
     expect(result.cloneLocalHarnessPath).toContain('ai-harness');
   });
