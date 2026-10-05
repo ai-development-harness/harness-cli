@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { link, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { harnessStatePath } from '../git.js';
 import { serializeMigrationPlan } from './planner.js';
@@ -59,14 +59,23 @@ export async function atomicWriteText(target: string, content: string): Promise<
 
 export async function exclusiveWriteText(target: string, content: string): Promise<void> {
   await mkdir(path.dirname(target), { recursive: true });
-  const handle = await open(target, 'wx');
+  const temporary = `${target}.tmp-${randomUUID()}`;
+  let handle;
   try {
+    handle = await open(temporary, 'wx');
     await handle.writeFile(content, 'utf8');
     await handle.sync();
-  } finally {
     await handle.close();
+    handle = undefined;
+
+    // A hard link creates the final directory entry atomically and fails
+    // with EEXIST instead of replacing a target that appeared after preflight.
+    await link(temporary, target);
+    await syncDirectory(path.dirname(target));
+  } finally {
+    await handle?.close();
+    await rm(temporary, { force: true });
   }
-  await syncDirectory(path.dirname(target));
 }
 
 function assertSafeMigrationId(migrationId: string): void {
