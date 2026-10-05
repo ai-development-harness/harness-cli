@@ -62,9 +62,23 @@ function customizeAgents(source: string): string {
     );
 }
 
-async function createLegacyFixture(options: { unsafeAgents?: boolean; withIdleState?: boolean } = {}) {
+async function createLegacyFixture(
+  options: {
+    unsafeAgents?: boolean;
+    unsafeRequirementsPath?: boolean;
+    withIdleState?: boolean;
+    withCloneLocalState?: boolean;
+  } = {},
+) {
   const fixture = await createRepository();
-  await writeText(fixture.repo, '.harness/manifest.yaml', BASELINE_0.replace('initialized: false', 'initialized: true').replace('name: null', 'name: acme').replace('initializedAt: null', 'initializedAt: "2026-10-01T10:00:00Z"'));
+  let manifest = BASELINE_0
+    .replace('initialized: false', 'initialized: true')
+    .replace('name: null', 'name: acme')
+    .replace('initializedAt: null', 'initializedAt: "2026-10-01T10:00:00Z"');
+  if (options.unsafeRequirementsPath) {
+    manifest = manifest.replace('requirements: docs/requirements', 'requirements: ../outside-requirements');
+  }
+  await writeText(fixture.repo, '.harness/manifest.yaml', manifest);
   await writeText(fixture.repo, '.harness/harness.lock.json', BASELINE_1);
   let agents = customizeAgents(BASELINE_2);
   if (options.unsafeAgents) agents += '\n## Arbitrary legacy customization\nDo not lose me.\n';
@@ -106,6 +120,17 @@ async function createLegacyFixture(options: { unsafeAgents?: boolean; withIdleSt
 
   await git(fixture.repo, ['add', '-A']);
   await git(fixture.repo, ['commit', '-m', 'legacy fixture']);
+
+  if (options.withCloneLocalState) {
+    const stateRoot = await harnessStatePath(fixture.repo);
+    await mkdir(path.join(stateRoot, 'execution'), { recursive: true });
+    await writeFile(
+      path.join(stateRoot, 'execution', 'execution-status.json'),
+      JSON.stringify({ schemaVersion: 1, existing: true }) + '\n',
+      'utf8',
+    );
+  }
+
   return fixture;
 }
 
@@ -184,6 +209,9 @@ describe('legacy v0.10.4 → thin migration', () => {
       )?.kind,
     ).toBe('MIGRATE_LOCAL_STATE');
 
+    const planBefore = await readFile(path.join(repo, 'planning', 'PLAN.md'), 'utf8');
+    const statusBefore = await readFile(path.join(repo, 'planning', 'STATUS.md'), 'utf8');
+
     const result = await executeLegacyThinMigration(preparation, { releaseStore: store });
     expect(result.status).toBe('completed');
 
@@ -203,6 +231,8 @@ describe('legacy v0.10.4 → thin migration', () => {
 
     expect(await readFile(path.join(repo, '.agents/skills/custom-backend/SKILL.md'), 'utf8')).toBe('# Custom backend skill\n');
     expect(await readFile(path.join(repo, 'CUSTOM.md'), 'utf8')).toBe('# Unknown project file\n');
+    expect(await readFile(path.join(repo, 'planning', 'PLAN.md'), 'utf8')).toBe(planBefore);
+    expect(await readFile(path.join(repo, 'planning', 'STATUS.md'), 'utf8')).toBe(statusBefore);
     expect(await readFile(path.join(repo, '.codex/config.toml'), 'utf8')).toBe(BASELINE_4);
     expect(await readFile(path.join(repo, '.harness/harness.lock.json'), 'utf8')).toBe(BASELINE_1);
 
@@ -225,6 +255,41 @@ describe('legacy v0.10.4 → thin migration', () => {
     expect(second).toEqual({ status: 'already-migrated', projectRoot: repo });
     const secondResult = await executeLegacyThinMigration(second, { releaseStore: store });
     expect(secondResult).toEqual({ status: 'already-migrated', mutations: 0, projectRoot: repo });
+  });
+
+  it('blocks target project paths that escape the repository before mutation', async () => {
+    const { base, repo } = await createLegacyFixture({ unsafeRequirementsPath: true });
+    const store = await installedStore(base);
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('blocked');
+    if (preparation.status !== 'blocked') throw new Error('expected blocked migration');
+    expect(preparation.plan.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PROJECT_SCHEMA_CONFLICT',
+          paths: ['.harness/manifest.yaml'],
+        }),
+      ]),
+    );
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('blocks when clone-local execution state already exists instead of overwriting it', async () => {
+    const { base, repo } = await createLegacyFixture({ withIdleState: true, withCloneLocalState: true });
+    const store = await installedStore(base);
+    const stateRoot = await harnessStatePath(repo);
+    const target = path.join(stateRoot, 'execution', 'execution-status.json');
+    const before = await readFile(target, 'utf8');
+
+    const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore: store });
+    expect(preparation.status).toBe('blocked');
+    if (preparation.status !== 'blocked') throw new Error('expected blocked migration');
+    expect(preparation.plan.blockers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'LOCAL_STATE_TARGET_CONFLICT' })]),
+    );
+    expect(await readFile(target, 'utf8')).toBe(before);
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('blocks unsafe AGENTS.md customization before checkpoint or project mutation', async () => {
