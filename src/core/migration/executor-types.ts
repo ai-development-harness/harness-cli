@@ -21,7 +21,10 @@ export type MigrationExecutionErrorCode =
   | 'OPERATION_HANDLER_MISSING'
   | 'OPERATION_INDETERMINATE'
   | 'POSTCONDITION_FAILED'
-  | 'PROJECT_IDENTITY_MISMATCH';
+  | 'PROJECT_IDENTITY_MISMATCH'
+  | 'PATH_LEXICAL_ESCAPE'
+  | 'PATH_FILESYSTEM_ESCAPE'
+  | 'PATH_BOUNDARY_UNAVAILABLE';
 
 export class MigrationExecutionError extends Error {
   constructor(
