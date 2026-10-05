@@ -82,6 +82,7 @@ export interface MigrationOperationContext {
 }
 
 export interface MigrationOperationHandler {
+  preflight?(context: MigrationOperationContext): Promise<void>;
   apply(context: MigrationOperationContext): Promise<MigrationOperationPostcondition>;
   verify(
     context: MigrationOperationContext,
