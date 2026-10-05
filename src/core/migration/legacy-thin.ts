@@ -82,6 +82,10 @@ async function workingTreeBlobSha1(projectRoot: string, portablePath: string): P
 
 interface MarkerBlock { before: string; inner: string; after: string }
 
+function normalizeTextEol(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
 function splitMarker(text: string, start: string, end: string): MarkerBlock {
   const startIndex = text.indexOf(start);
   const endIndex = text.indexOf(end);
@@ -103,12 +107,14 @@ function normalizedAgents(text: string): string {
 }
 
 function buildThinAgents(source: string): string {
-  if (normalizedAgents(source) !== normalizedAgents(baselineAgents0104)) {
+  const normalizedSource = normalizeTextEol(source);
+  const normalizedBaseline = normalizeTextEol(baselineAgents0104);
+  if (normalizedAgents(normalizedSource) !== normalizedAgents(normalizedBaseline)) {
     throw new Error(
       'AGENTS.md contains changes outside the supported PROJECT-CONTEXT/SKILL-ROUTING blocks; destructive bootstrap rewrite is unsafe.',
     );
   }
-  const project = splitMarker(source, PROJECT_CONTEXT_START, PROJECT_CONTEXT_END);
+  const project = splitMarker(normalizedSource, PROJECT_CONTEXT_START, PROJECT_CONTEXT_END);
   const skill = splitMarker(project.after, SKILL_ROUTING_START, SKILL_ROUTING_END);
   const projectBlock = `${PROJECT_CONTEXT_START}${project.inner}${PROJECT_CONTEXT_END}`;
   const skillBlock = `${SKILL_ROUTING_START}${skill.inner}${SKILL_ROUTING_END}`;
@@ -135,10 +141,12 @@ function buildThinAgents(source: string): string {
 }
 
 function buildThinClaude(source: string): string {
-  if (!source.startsWith(baselineClaude0104)) {
+  const normalizedSource = normalizeTextEol(source);
+  const normalizedBaseline = normalizeTextEol(baselineClaude0104);
+  if (!normalizedSource.startsWith(normalizedBaseline)) {
     throw new Error('CLAUDE.md diverges from the supported v0.10.4 adapter prefix; destructive bootstrap rewrite is unsafe.');
   }
-  const suffix = source.slice(baselineClaude0104.length).trim();
+  const suffix = normalizedSource.slice(normalizedBaseline.length).trim();
   const lines = [
     '@AGENTS.md',
     '',
