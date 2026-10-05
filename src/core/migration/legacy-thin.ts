@@ -157,6 +157,16 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function assertTargetConfigPaths(projectRoot: string, config: HarnessConfig): void {
+  const configuredPaths = [
+    ...Object.values(config.sources),
+    ...Object.values(config.protocol),
+  ];
+  for (const configuredPath of configuredPaths) {
+    safeProjectPath(projectRoot, configuredPath);
+  }
+}
+
 function buildThinConfig(source: string, plan: MigrationPlan): string {
   const parsed = YAML.parse(source) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
@@ -227,7 +237,12 @@ export async function prepareLegacyThinMigration(
     try {
       if (operation.strategy === 'legacy-manifest-to-thin-config') {
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
-        operations.push(enrichPlanOperation(operation, buildThinConfig(source, plan)));
+        const content = buildThinConfig(source, plan);
+        assertTargetConfigPaths(
+          plan.source.projectRoot,
+          harnessConfigSchema.parse(YAML.parse(content)),
+        );
+        operations.push(enrichPlanOperation(operation, content));
       } else if (operation.strategy === 'thin-agents-bootstrap-preserve-project-blocks') {
         const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
         operations.push(enrichPlanOperation(operation, buildThinAgents(source)));
@@ -244,6 +259,20 @@ export async function prepareLegacyThinMigration(
         paths: [operation.path],
       });
       operations.push(operation);
+    }
+  }
+
+  const localStateOperation = operations.find((operation) => operation.kind === 'MIGRATE_LOCAL_STATE');
+  if (localStateOperation) {
+    const stateRoot = await harnessStatePath(plan.source.projectRoot);
+    const target = path.join(stateRoot, 'execution', 'execution-status.json');
+    if (await exists(target)) {
+      blockers.push({
+        code: 'LOCAL_STATE_TARGET_CONFLICT',
+        message: 'Clone-local execution state already exists; migration will not overwrite it.',
+        paths: [localStateOperation.path],
+        details: { target },
+      });
     }
   }
 
@@ -331,6 +360,9 @@ function migrateLocalStateHandler(): MigrationOperationHandler {
       await backupSource(context);
       const stateRoot = await harnessStatePath(context.projectRoot);
       const target = path.join(stateRoot, 'execution', 'execution-status.json');
+      if (await exists(target)) {
+        throw new Error('Clone-local execution state appeared after planning; refusing to overwrite it.');
+      }
       await atomicWriteText(target, bytes.toString('utf8'));
       await rm(source, { force: true });
       return { sourceAbsent: true, target, sha256: sha256(bytes) };
@@ -380,7 +412,11 @@ async function verifyPreservedPaths(plan: MigrationPlan): Promise<string[]> {
   return failures;
 }
 
-async function verifyLegacyThinResult(plan: MigrationPlan, store: ReleaseStore): Promise<Readonly<Record<string, unknown>>> {
+async function verifyLegacyThinResult(
+  plan: MigrationPlan,
+  store: ReleaseStore,
+  checkpointRoot: string,
+): Promise<Readonly<Record<string, unknown>>> {
   if (plan.source.projectRoot === null || plan.target.harnessRelease === null) {
     throw new Error('Migration plan is missing target identity.');
   }
@@ -400,8 +436,13 @@ async function verifyLegacyThinResult(plan: MigrationPlan, store: ReleaseStore):
     throw new Error(`Project-owned/customized paths changed unexpectedly: ${preservedFailures.join(', ')}`);
   }
   const inspection = await inspectProject(projectRoot);
-  if (inspection.state !== 'thin-harness-current') {
-    throw new Error(`Post-migration project state is ${inspection.state}, expected thin-harness-current.`);
+  if (path.basename(checkpointRoot) !== plan.migrationId || !(await exists(checkpointRoot))) {
+    throw new Error('Current migration checkpoint identity cannot be proven during final verification.');
+  }
+  if (inspection.state !== 'migration-in-progress' || inspection.legacy !== null) {
+    throw new Error(
+      `Post-migration target is not thin-ready while checkpoint is active: ${inspection.state}.`,
+    );
   }
   return {
     config: 'PASS',
@@ -409,7 +450,9 @@ async function verifyLegacyThinResult(plan: MigrationPlan, store: ReleaseStore):
     pathBoundaries: 'PASS',
     requiredDirectories: 'PASS',
     preservedArtifacts: 'PASS',
-    projectState: inspection.state,
+    legacyControlPlaneRetired: 'PASS',
+    checkpointState: inspection.state,
+    expectedStateAfterCheckpointRemoval: 'thin-harness-current',
   };
 }
 
@@ -427,6 +470,7 @@ function buildMigrationReport(plan: MigrationPlan, verification: Readonly<Record
     `- source baseline: ${plan.source.baseline?.repository ?? 'unknown'}@${plan.source.baseline?.ref ?? 'unknown'} (${plan.source.baseline?.commit ?? 'unknown'})`,
     `- target release: ${plan.target.harnessRelease ?? 'unknown'}`,
     `- target schema: ${plan.target.projectSchemaVersion}`,
+    `- generated at: ${new Date().toISOString()}`,
     '',
     '## Verification',
     '',
@@ -460,7 +504,7 @@ function reportHandler(store: ReleaseStore): MigrationOperationHandler {
       if (context.operation.strategy !== 'write-final-migration-report-after-verification') {
         throw new Error(`Unsupported CREATE strategy: ${context.operation.strategy}`);
       }
-      const verification = await verifyLegacyThinResult(context.plan, store);
+      const verification = await verifyLegacyThinResult(context.plan, store, context.checkpoint.root);
       const report = buildMigrationReport(context.plan, verification);
       const target = safeProjectPath(context.projectRoot, context.operation.path);
       await mkdir(path.dirname(target), { recursive: true });
@@ -497,9 +541,16 @@ export async function executeLegacyThinMigration(
   }
   if (preparation.status === 'blocked') throw new Error('Legacy thin migration plan is blocked.');
   const store = dependencies.releaseStore ?? new ReleaseStore();
-  return executeMigration(preparation.plan, {
+  const result = await executeMigration(preparation.plan, {
     ...dependencies,
     releaseStore: store,
     handlers: { ...legacyThinOperationHandlers(store), ...(dependencies.handlers ?? {}) },
   });
+  const finalInspection = await inspectProject(preparation.plan.source.projectRoot ?? '');
+  if (finalInspection.state !== 'thin-harness-current') {
+    throw new Error(
+      `Migration completed but final project state is ${finalInspection.state}, expected thin-harness-current.`,
+    );
+  }
+  return result;
 }
