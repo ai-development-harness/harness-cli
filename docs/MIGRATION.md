@@ -614,6 +614,33 @@ Issue #17 реализует execution framework поверх immutable `Migrati
 
 Concrete handlers для `TRANSFORM`, `REPLACE_GENERATED_BLOCK`, `DELETE_HARNESS_OWNED_CLEAN` и других domain operations намеренно не входят в #17. Executor принимает их через typed operation-handler contract; это не позволяет execution layer повторно принимать ownership/semantic решения.
 
+## 20.2 Versioned v0.10.4 → thin transformations
+
+Issue #18 реализует первый полный domain layer поверх Inspector / Planner / Executor для доказанного legacy baseline `v0.10.4`.
+
+Перед Apply выполняется отдельная preparation phase. Она:
+
+- строит `harness.yaml` in-memory и валидирует его target schema;
+- удаляет legacy control-plane field `protocol.file`, сохраняя project-owned settings;
+- проверяет configured target paths до первой mutation и блокирует выход за repository boundary;
+- готовит exact content + SHA-256 для thin `AGENTS.md` и `CLAUDE.md`;
+- допускает автоматическую замену `AGENTS.md` только если изменения ограничены доказанными project marker blocks;
+- допускает автоматическую замену `CLAUDE.md` только при доказанном immutable legacy prefix;
+- блокирует существующий clone-local execution state вместо silent overwrite.
+
+Apply использует только подготовленный immutable plan:
+
+- known idle legacy execution state переносится ровно одной `MIGRATE_LOCAL_STATE` operation в Git-private `ai-harness/execution/`;
+- project/third-party skills, unknown files и runtime-specific project config сохраняются;
+- `planning/PLAN.md` и `planning/STATUS.md` для schema v1 сохраняются byte-for-byte и не регенерируются без schema-specific необходимости;
+- удаляются только enumerated `harness-owned-clean` paths с доказанным baseline identity;
+- target Harness Distribution повторно проверяется Executor по release digest до mutation/resume;
+- каждая mutation имеет собственный postcondition и backup внутри migration checkpoint.
+
+Final verification выполняется до PASS report и проверяет target config/release, path boundaries, required project directories, preserved project-owned/customized artifacts и retirement legacy manifest. Во время этой проверки checkpoint ещё существует, поэтому ожидаемое Inspector state — `migration-in-progress` при уже доказанном thin target. После удаления completed checkpoint orchestrator дополнительно требует `thin-harness-current`.
+
+Durable report создаётся последней project mutation только после PASS deterministic verification. Повторный запуск уже мигрированного проекта возвращает `already-migrated` и zero mutation.
+
 ## 21. Checkpoint и interruption safety
 
 Перед первой mutation engine создаёт clone-local checkpoint:
@@ -636,6 +663,7 @@ Checkpoint не является заменой Git и не должен сод�
 
 ```text
 pending
+applying
 applied
 verified
 ```

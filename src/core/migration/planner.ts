@@ -290,20 +290,6 @@ function ownershipOperation(entry: LegacyFileOwnership): MigrationPlanOperation 
     case 'shared-customized':
       return sharedOperation(entry);
     case 'project-owned':
-      if (entry.path === 'planning/PLAN.md' || entry.path === 'planning/STATUS.md') {
-        return {
-          id: '',
-          phase: 'finalize',
-          kind: 'REGENERATE_PROJECTION',
-          path: entry.path,
-          mutates: true,
-          classification: entry.classification,
-          precondition: trackedPrecondition(entry),
-          baselineBlobSha1: null,
-          strategy: 'regenerate-from-canonical-artifacts',
-          reason: 'Tracked deterministic projection must be rebuilt after project-schema migration.',
-        };
-      }
       return {
         id: '',
         phase: 'preserve',
@@ -477,7 +463,14 @@ export async function planMigration(
     if (target.blocker) blockers.push(target.blocker);
   }
 
-  const operations = inspection.ownership.map(ownershipOperation);
+  const migratedOperationalPaths = new Set<string>();
+  if (executionState.exists && !executionState.active && !executionState.unknown) {
+    migratedOperationalPaths.add('.harness/local/execution/execution-status.json');
+  }
+
+  const operations = inspection.ownership
+    .filter((entry) => !migratedOperationalPaths.has(entry.path))
+    .map(ownershipOperation);
 
   if (executionState.exists && !executionState.active && !executionState.unknown && executionState.sha256) {
     operations.push({
@@ -533,7 +526,7 @@ export async function planMigration(
         id: '',
         phase: 'finalize',
         kind: 'CREATE',
-        path: `planning/audits/MIGRATION-${migrationId}.md`,
+        path: `planning/audits/MIGRATION-${migrationId.replace(/^migration-/, '')}.md`,
         mutates: true,
         precondition: { kind: 'absent' },
         strategy: 'write-final-migration-report-after-verification',
