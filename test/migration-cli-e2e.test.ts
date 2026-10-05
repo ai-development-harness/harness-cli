@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { globalHarnessPaths } from '../src/core/paths.js';
 import {
   executeLegacyThinMigration,
   inspectMigrationCheckpoint,
@@ -86,19 +85,21 @@ async function fixture(options: Parameters<typeof createLegacyFixture>[0] = {}) 
   const releaseRoot = await createReleaseTree(created.base);
   const install = await runCli(created.repo, ['release', 'install', releaseRoot, '--json'], env);
   expect(install.code, install.stderr || install.stdout).toBe(0);
-  expect(jsonOutput(install).ok).toBe(true);
-  return { ...created, env };
+  const installed = jsonOutput(install);
+  expect(installed.ok).toBe(true);
+  const releaseStore = new ReleaseStore(path.dirname(path.dirname(installed.root)));
+  return { ...created, env, releaseStore };
 }
 
-async function createInterruptedMigration(repo: string): Promise<string> {
-  const preparation = await prepareLegacyThinMigration(repo);
+async function createInterruptedMigration(repo: string, releaseStore: ReleaseStore): Promise<string> {
+  const preparation = await prepareLegacyThinMigration(repo, {}, { releaseStore });
   expect(preparation.status).toBe('ready');
   if (preparation.status !== 'ready') throw new Error('expected ready migration');
 
   let interrupted = false;
   await expect(
     executeLegacyThinMigration(preparation, {
-      releaseStore: new ReleaseStore(globalHarnessPaths().data),
+      releaseStore,
       hooks: {
         afterOperationVerified() {
           if (!interrupted) {
@@ -139,7 +140,7 @@ describe('migration CLI end-to-end', () => {
     expect(plan.code).toBe(0);
     const planned = jsonOutput(plan);
     expect(planned.status).toBe('ready');
-    expect(planned.savedPlan).toBe(await realpath(planPath));
+    expect(planned.savedPlan).toBe(planPath);
 
     const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
     expect(apply.code, apply.stderr || apply.stdout).toBe(0);
@@ -270,8 +271,8 @@ describe('migration CLI end-to-end', () => {
   });
 
   it('surfaces interruption status and resumes through the public CLI', async () => {
-    const { repo, env } = await fixture();
-    const migrationId = await createInterruptedMigration(repo);
+    const { repo, env, releaseStore } = await fixture();
+    const migrationId = await createInterruptedMigration(repo, releaseStore);
 
     const status = await runCli(repo, ['migrate', 'status', migrationId, '--json'], env);
     expect(status.code).toBe(0);
