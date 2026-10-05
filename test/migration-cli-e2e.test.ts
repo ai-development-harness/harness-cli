@@ -277,6 +277,44 @@ describe('migration CLI end-to-end', () => {
     expect(jsonOutput(status).checkpoints).toEqual([]);
   });
 
+  it('rejects a changed preserved project file before any migration mutation', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'preserved-stale-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const customSkill = path.join(repo, '.agents/skills/custom-backend/SKILL.md');
+    await writeFile(customSkill, '# Changed after planning\n', 'utf8');
+
+    const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(apply.code).toBe(1);
+    expect(jsonOutput(apply).error.code).toBe('PLAN_STALE');
+
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readFile(path.join(repo, '.harness/manifest.yaml'), 'utf8'))
+      .toContain('release: "0.10.4"');
+
+    const status = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(jsonOutput(status).checkpoints).toEqual([]);
+  });
+
+  it('does not overwrite a migration target that appears after planning', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'target-collision-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const target = path.join(repo, 'harness.yaml');
+    await writeFile(target, 'user-owned: keep-me\n', 'utf8');
+
+    const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(apply.code).toBe(1);
+    expect(jsonOutput(apply).error.code).toBe('PLAN_STALE');
+    expect(await readFile(target, 'utf8')).toBe('user-owned: keep-me\n');
+
+    const status = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(jsonOutput(status).checkpoints).toEqual([]);
+  });
+
   it('rejects a tampered saved plan before checkpoint or project mutation', async () => {
     const { base, repo, env } = await fixture();
     const planPath = path.join(base, 'tampered-plan.json');
@@ -302,6 +340,22 @@ describe('migration CLI end-to-end', () => {
     const status = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(status.code).toBe(0);
     expect(jsonOutput(status).checkpoints).toEqual([]);
+  });
+
+  it('rejects unsafe migration ids before resolving checkpoint paths', async () => {
+    const { repo, env } = await fixture();
+
+    const resume = await runCli(repo, ['migrate', 'resume', '../outside', '--json'], env);
+    expect(resume.code).toBe(1);
+    expect(jsonOutput(resume).error.code).toBe('PLAN_INVALID');
+
+    const status = await runCli(repo, ['migrate', 'status', '../outside', '--json'], env);
+    expect(status.code).toBe(0);
+    expect(jsonOutput(status).checkpoints[0]).toMatchObject({
+      migrationId: '../outside',
+      ok: false,
+      error: { code: 'PLAN_INVALID' },
+    });
   });
 
   it('surfaces interruption status and resumes through the public CLI', async () => {
