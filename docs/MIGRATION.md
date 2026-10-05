@@ -661,7 +661,7 @@ harness migrate resume <migration-id>
 - `plan --out` сохраняет exact prepared plan только по явному запросу пользователя;
 - blocked plan не сохраняется как executable Apply input;
 - `apply` не запускает Planner и не пересчитывает ownership/baseline decisions;
-- перед Apply prepared descriptors, project identity, HEAD, operation preconditions и target release digest проверяются повторно;
+- перед Apply повторно проверяются prepared descriptors, project identity, HEAD, полный inventory и canonical phase order операций, все operation preconditions, отсутствие новых mutation-target collisions и target release digest;
 - `status` читает checkpoint fail-closed и способен показать corrupt/recovery-required state без mutation;
 - `resume` использует immutable `plan.json` из checkpoint и domain handlers той же versioned migration.
 
@@ -681,7 +681,7 @@ Exit codes migration CLI:
 
 На текущем этапе earliest supported и current repository-embedded baseline совпадают: `0.10.4`. Intermediate supported release отсутствует, поэтому regression suite не создаёт фиктивные compatibility claims.
 
-E2E matrix покрывает clean migration, explicit baseline adoption, mismatch, modified Harness-owned/shared paths, project skill preservation, dirty/untracked conflicts, interruption/resume, stale plan, corrupt checkpoint, active execution, idempotency и Git worktree. CI выполняет suite на Linux, macOS и Windows; portable paths дополнительно проверяются независимо от host separator.
+E2E matrix покрывает clean migration, explicit baseline adoption, mismatch, modified Harness-owned/shared paths, project skill preservation, dirty/untracked conflicts, interruption/resume, stale/tampered/incomplete saved plan, late target collision, preserved tracked deletion, corrupt checkpoint, active execution, idempotency и Git worktree. CI выполняет suite на Linux, macOS и Windows; portable paths дополнительно проверяются независимо от host separator.
 
 ## 21. Checkpoint и interruption safety
 
