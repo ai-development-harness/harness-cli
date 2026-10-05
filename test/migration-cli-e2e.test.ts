@@ -1,11 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  acquireMigrationExecutionLock,
   executeLegacyThinMigration,
   inspectMigrationCheckpoint,
+  migrationExecutionLockPath,
   prepareLegacyThinMigration,
 } from '../src/core/migration/index.js';
 import { ReleaseStore } from '../src/core/releases/store.js';
@@ -436,6 +440,88 @@ describe('migration CLI end-to-end', () => {
 
     const after = await runCli(repo, ['migrate', 'status', '--json'], env);
     expect(jsonOutput(after).checkpoints).toEqual([]);
+  }, 30_000);
+
+  it('reports an active execution lock and rejects concurrent public apply', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'active-lock-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const lease = await acquireMigrationExecutionLock(repo, 'migration-external-owner', 'resume');
+    try {
+      const status = await runCli(repo, ['migrate', 'status', '--json'], env);
+      expect(status.code).toBe(0);
+      expect(jsonOutput(status).executionLock).toMatchObject({
+        state: 'active',
+        owner: {
+          migrationId: 'migration-external-owner',
+          mode: 'resume',
+          pid: process.pid,
+        },
+      });
+
+      const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+      expect(apply.code).toBe(1);
+      expect(jsonOutput(apply).error).toMatchObject({
+        code: 'MIGRATION_LOCK_ACTIVE',
+        details: {
+          owner: expect.objectContaining({
+            migrationId: 'migration-external-owner',
+            mode: 'resume',
+          }),
+        },
+      });
+    } finally {
+      await lease.release();
+    }
+  }, 15_000);
+
+  it('reports and automatically recovers a stale execution lock from a crashed process', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'stale-lock-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const { stdout: deadPidOutput } = await execFileAsync(
+      process.execPath,
+      ['-e', 'console.log(process.pid)'],
+      { encoding: 'utf8' },
+    );
+    const deadPid = Number(deadPidOutput.trim());
+    expect(Number.isInteger(deadPid)).toBe(true);
+
+    const lockPath = await migrationExecutionLockPath(repo);
+    await mkdir(path.dirname(lockPath), { recursive: true });
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        ownerId: randomUUID(),
+        migrationId: 'migration-crashed-owner',
+        mode: 'apply',
+        pid: deadPid,
+        hostname: hostname(),
+        acquiredAt: '2026-10-05T17:00:00.000Z',
+      }, null, 2)}\n`,
+      'utf8',
+    );
+
+    const staleStatus = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(staleStatus.code).toBe(0);
+    expect(jsonOutput(staleStatus).executionLock).toMatchObject({
+      state: 'stale',
+      owner: {
+        migrationId: 'migration-crashed-owner',
+        pid: deadPid,
+      },
+      reason: 'process-missing',
+    });
+
+    const apply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(apply.code, apply.stderr || apply.stdout).toBe(0);
+    expect(jsonOutput(apply).status).toBe('completed');
+
+    const after = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(jsonOutput(after).executionLock).toMatchObject({ state: 'none' });
   }, 30_000);
 
   it('reports a corrupted checkpoint and refuses automatic resume', async () => {
