@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from '../config.js';
 import { isReleaseError } from '../releases/errors.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
+import { resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { inspectProject } from './legacy/inspector.js';
 import type { LegacyFileOwnership, ProjectInspectionResult } from './types.js';
 import type {
@@ -139,7 +140,11 @@ function mapInspectionWarnings(inspection: ProjectInspectionResult): MigrationPl
 }
 
 async function inspectLegacyExecutionState(projectRoot: string): Promise<LegacyExecutionStateInspection> {
-  const target = path.join(projectRoot, '.harness', 'local', 'execution', 'execution-status.json');
+  const target = await resolvePortablePathWithinBoundary(
+    projectRoot,
+    '.harness/local/execution/execution-status.json',
+    'legacy execution state',
+  );
   if (!(await exists(target))) {
     return { exists: false, sha256: null, active: false, unknown: false };
   }
