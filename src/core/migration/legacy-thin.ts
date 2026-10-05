@@ -17,6 +17,7 @@ import type {
   MigrationOperationPostcondition,
 } from './executor-types.js';
 import { baselineAgents0104, baselineClaude0104 } from './legacy/bootstrap-baseline-0.10.4.js';
+import { getLegacyBaselineDescriptor } from './legacy/baselines.js';
 import { inspectProject } from './legacy/inspector.js';
 import type { MigrationPlan, MigrationPlanMessage, MigrationPlannerOptions } from './plan-types.js';
 import { planMigration, type MigrationPlannerDependencies } from './planner.js';
@@ -522,36 +523,142 @@ export function legacyThinOperationHandlers(store: ReleaseStore): MigrationOpera
   };
 }
 
-function assertPreparedLegacyThinPlan(plan: MigrationPlan): void {
+async function assertPreparedLegacyThinPlan(plan: MigrationPlan): Promise<void> {
   if (
     plan.schemaVersion !== 1 ||
+    !/^migration-[0-9a-f]{16}$/.test(plan.migrationId) ||
     plan.status !== 'ready' ||
     plan.blockers.length !== 0 ||
     plan.source.projectRoot === null ||
+    plan.source.legacyRelease === null ||
+    plan.source.baseline === null ||
     plan.target.harnessRelease === null ||
     plan.target.releaseDigest === null
   ) {
-    throw new Error('Legacy thin migration requires a ready prepared plan with verified target identity.');
+    throw new Error('Legacy thin migration requires a ready prepared plan with verified source/target identity.');
   }
 
-  const preparedStrategies = new Set([
-    'legacy-manifest-to-thin-config',
-    'thin-agents-bootstrap-preserve-project-blocks',
-    'thin-claude-adapter-preserve-project-content',
-  ]);
+  const baseline = getLegacyBaselineDescriptor(plan.source.legacyRelease);
+  if (
+    baseline === null ||
+    plan.source.baseline.repository !== baseline.source.repository ||
+    plan.source.baseline.ref !== baseline.source.ref ||
+    plan.source.baseline.commit !== baseline.source.commit
+  ) {
+    throw new Error('Saved migration plan baseline identity does not match a supported immutable descriptor.');
+  }
 
+  const seenPaths = new Set<string>();
   for (const operation of plan.operations) {
-    if (!preparedStrategies.has(operation.strategy)) continue;
-    const content = operation.targetDescriptor?.content;
-    const digest = operation.targetDescriptor?.sha256;
-    if (
-      typeof content !== 'string' ||
-      typeof digest !== 'string' ||
-      digest !== sha256(content)
-    ) {
-      throw new Error(
-        `Migration operation ${operation.id} is missing an immutable prepared target descriptor.`,
-      );
+    if (seenPaths.has(operation.path)) {
+      throw new Error(`Saved migration plan contains duplicate operation path: ${operation.path}.`);
+    }
+    seenPaths.add(operation.path);
+
+    switch (operation.kind) {
+      case 'PRESERVE':
+        if (operation.mutates) {
+          throw new Error(`PRESERVE operation ${operation.id} cannot mutate project data.`);
+        }
+        break;
+
+      case 'TRANSFORM': {
+        if (
+          operation.path !== '.harness/manifest.yaml' ||
+          operation.targetPath !== 'harness.yaml' ||
+          operation.strategy !== 'legacy-manifest-to-thin-config' ||
+          !operation.mutates
+        ) {
+          throw new Error(`Unsupported prepared TRANSFORM operation: ${operation.id}.`);
+        }
+        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const expectedContent = buildThinConfig(source, plan);
+        const content = operation.targetDescriptor?.content;
+        const digest = operation.targetDescriptor?.sha256;
+        if (
+          typeof content !== 'string' ||
+          content !== expectedContent ||
+          typeof digest !== 'string' ||
+          digest !== sha256(content)
+        ) {
+          throw new Error(`Prepared transform descriptor is inconsistent: ${operation.id}.`);
+        }
+        break;
+      }
+
+      case 'REPLACE_GENERATED_BLOCK': {
+        const strategyByPath: Readonly<Record<string, string>> = {
+          'AGENTS.md': 'thin-agents-bootstrap-preserve-project-blocks',
+          'CLAUDE.md': 'thin-claude-adapter-preserve-project-content',
+        };
+        const expectedStrategy = strategyByPath[operation.path];
+        if (!expectedStrategy || operation.strategy !== expectedStrategy || !operation.mutates) {
+          throw new Error(`Unsupported prepared bootstrap operation: ${operation.id}.`);
+        }
+        const source = await readFile(safeProjectPath(plan.source.projectRoot, operation.path), 'utf8');
+        const expectedContent =
+          operation.path === 'AGENTS.md'
+            ? buildThinAgents(source)
+            : buildThinClaude(source);
+        const content = operation.targetDescriptor?.content;
+        const digest = operation.targetDescriptor?.sha256;
+        if (
+          typeof content !== 'string' ||
+          content !== expectedContent ||
+          typeof digest !== 'string' ||
+          digest !== sha256(content)
+        ) {
+          throw new Error(`Prepared bootstrap descriptor is inconsistent: ${operation.id}.`);
+        }
+        break;
+      }
+
+      case 'DELETE_HARNESS_OWNED_CLEAN': {
+        const baselineSha = baseline.baselineBlobSha1[operation.path];
+        if (
+          !baselineSha ||
+          operation.classification !== 'harness-owned-clean' ||
+          operation.strategy !== 'retire-proven-legacy-core' ||
+          operation.baselineBlobSha1 !== baselineSha ||
+          operation.precondition.kind !== 'git-blob-sha1' ||
+          operation.precondition.value !== baselineSha ||
+          !operation.mutates
+        ) {
+          throw new Error(`Unsafe legacy cleanup operation in saved plan: ${operation.id}.`);
+        }
+        break;
+      }
+
+      case 'MIGRATE_LOCAL_STATE':
+        if (
+          operation.path !== '.harness/local/execution/execution-status.json' ||
+          operation.targetPath !== 'ai-harness/execution/execution-status.json' ||
+          operation.strategy !== 'legacy-execution-state-to-clone-local' ||
+          operation.precondition.kind !== 'sha256' ||
+          !operation.mutates
+        ) {
+          throw new Error(`Unsupported local-state migration operation: ${operation.id}.`);
+        }
+        break;
+
+      case 'CREATE': {
+        const expectedReportPath =
+          `planning/audits/MIGRATION-${plan.migrationId.replace(/^migration-/, '')}.md`;
+        if (
+          operation.path !== expectedReportPath ||
+          operation.strategy !== 'write-final-migration-report-after-verification' ||
+          operation.precondition.kind !== 'absent' ||
+          !operation.mutates
+        ) {
+          throw new Error(`Unsupported CREATE operation in saved plan: ${operation.id}.`);
+        }
+        break;
+      }
+
+      default:
+        throw new Error(
+          `Operation kind ${operation.kind} is not supported by the v0.10.4 thin migration domain.`,
+        );
     }
   }
 }
@@ -568,7 +675,7 @@ export async function executeLegacyThinMigration(
     return { status: 'already-migrated', mutations: 0, projectRoot: preparation.projectRoot };
   }
   if (preparation.status === 'blocked') throw new Error('Legacy thin migration plan is blocked.');
-  assertPreparedLegacyThinPlan(preparation.plan);
+  await assertPreparedLegacyThinPlan(preparation.plan);
   const store = dependencies.releaseStore ?? new ReleaseStore();
   const result = await executeMigration(preparation.plan, {
     ...dependencies,
