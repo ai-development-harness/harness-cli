@@ -490,7 +490,7 @@ describe('migration CLI end-to-end', () => {
     const result = await runCli(repo, ['migrate', 'plan', '--json'], env);
     expect(result.code).toBe(2);
     expect(jsonOutput(result).plan.blockers).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: 'PROJECT_SCHEMA_CONFLICT' })]),
+      expect.arrayContaining([expect.objectContaining({ code: 'PATH_LEXICAL_ESCAPE' })]),
     );
   });
 });
