@@ -1,3 +1,4 @@
+import type { ReleaseStore } from '../releases/store.js';
 import type { MigrationOperationKind, MigrationPlan, MigrationPlanOperation } from './plan-types.js';
 
 export type MigrationJournalOperationStatus = 'pending' | 'applying' | 'applied' | 'verified';
@@ -99,6 +100,7 @@ export interface MigrationExecutorDependencies {
   handlers?: MigrationOperationHandlers;
   hooks?: MigrationExecutorHooks;
   now?: () => Date;
+  releaseStore?: ReleaseStore;
 }
 
 export interface MigrationExecutionResult {
