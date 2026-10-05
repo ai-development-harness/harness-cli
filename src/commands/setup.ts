@@ -1,6 +1,6 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_CONFIG, configPath, writeConfig } from '../core/config.js';
+import { DEFAULT_CONFIG, writeConfig } from '../core/config.js';
 import { findGitRoot, harnessStatePath } from '../core/git.js';
 import { resolvePortablePathWithinBoundary } from '../core/path-boundary.js';
 import { globalHarnessPaths } from '../core/paths.js';
@@ -34,7 +34,7 @@ const CLAUDE_BOOTSTRAP = `# AI Development Harness\n\nThis project uses AI Devel
 
 export async function setupCommand(cwd: string): Promise<void> {
   const root = await findGitRoot(cwd);
-  const targetConfig = configPath(root);
+  const targetConfig = await resolvePortablePathWithinBoundary(root, 'harness.yaml', 'harness.yaml');
 
   if (await exists(targetConfig)) {
     throw new Error(`Harness is already configured: ${targetConfig}`);
