@@ -358,6 +358,47 @@ describe('migration CLI end-to-end', () => {
     });
   });
 
+  it('rejects saved plans with omitted required operations before mutation', async () => {
+    const { base, repo, env } = await fixture();
+    const planPath = path.join(base, 'incomplete-plan.json');
+    expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
+
+    const original = JSON.parse(await readFile(planPath, 'utf8')) as {
+      operations: Array<{ kind: string; path: string }>;
+    };
+
+    const missingCleanup = {
+      ...original,
+      operations: original.operations.filter(
+        (operation) => operation.path !== 'planning/harness-updates/README.md',
+      ),
+    };
+    await writeFile(planPath, `${JSON.stringify(missingCleanup, null, 2)}\n`, 'utf8');
+
+    const cleanupApply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(cleanupApply.code).toBe(1);
+    expect(jsonOutput(cleanupApply).error.message).toContain(
+      'tracked paths are missing operations: planning/harness-updates/README.md',
+    );
+    await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+
+    const missingReport = {
+      ...original,
+      operations: original.operations.filter((operation) => operation.kind !== 'CREATE'),
+    };
+    await writeFile(planPath, `${JSON.stringify(missingReport, null, 2)}\n`, 'utf8');
+
+    const reportApply = await runCli(repo, ['migrate', 'apply', '--plan', planPath, '--json'], env);
+    expect(reportApply.code).toBe(1);
+    expect(jsonOutput(reportApply).error.message).toContain(
+      'exactly one final migration report operation',
+    );
+
+    const status = await runCli(repo, ['migrate', 'status', '--json'], env);
+    expect(jsonOutput(status).checkpoints).toEqual([]);
+  });
+
   it('surfaces interruption status and resumes through the public CLI', async () => {
     const { repo, env, releaseStore } = await fixture();
     const migrationId = await createInterruptedMigration(repo, releaseStore);
