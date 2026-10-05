@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import { DEFAULT_CONFIG, harnessConfigSchema, readConfig, type HarnessConfig } from '../config.js';
-import { harnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
+import { resolveHarnessStatePath, trackedProjectPaths, trackedWorkingTreeBlobSha1 } from '../git.js';
 import { isPathBoundaryError, resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { resolvePinnedRelease } from '../releases/resolver.js';
 import { ReleaseStore } from '../releases/store.js';
@@ -87,9 +87,8 @@ async function assertLocalStateTargetAbsent(
   projectRoot: string,
   operationId: string,
 ): Promise<void> {
-  const stateRoot = await harnessStatePath(projectRoot);
-  const target = await resolvePortablePathWithinBoundary(
-    stateRoot,
+  const target = await resolveHarnessStatePath(
+    projectRoot,
     'execution/execution-status.json',
     'clone-local execution state',
   );
@@ -309,9 +308,8 @@ export async function prepareLegacyThinMigration(
   const localStateOperation = operations.find((operation) => operation.kind === 'MIGRATE_LOCAL_STATE');
   if (localStateOperation) {
     try {
-      const stateRoot = await harnessStatePath(plan.source.projectRoot);
-      const target = await resolvePortablePathWithinBoundary(
-        stateRoot,
+      const target = await resolveHarnessStatePath(
+        plan.source.projectRoot,
         'execution/execution-status.json',
         'clone-local execution state',
       );
@@ -348,9 +346,8 @@ export async function prepareLegacyThinMigration(
 async function backupSource(context: MigrationOperationContext): Promise<string | null> {
   const source = await safeProjectPath(context.projectRoot, context.operation.path);
   if (!(await exists(source))) return null;
-  const stateRoot = await harnessStatePath(context.projectRoot);
-  const backup = await resolvePortablePathWithinBoundary(
-    stateRoot,
+  const backup = await resolveHarnessStatePath(
+    context.projectRoot,
     `migrations/${context.plan.migrationId}/backups/${context.operation.path}`,
     'migration backup path',
   );
@@ -436,9 +433,8 @@ function migrateLocalStateHandler(): MigrationOperationHandler {
       const source = await safeProjectPath(context.projectRoot, context.operation.path);
       const bytes = await readFile(source);
       await backupSource(context);
-      const stateRoot = await harnessStatePath(context.projectRoot);
-      const target = await resolvePortablePathWithinBoundary(
-        stateRoot,
+      const target = await resolveHarnessStatePath(
+        context.projectRoot,
         'execution/execution-status.json',
         'clone-local execution state',
       );
