@@ -380,14 +380,17 @@ describe('migration CLI end-to-end', () => {
     expect((await runCli(repo, ['migrate', 'plan', '--out', planPath, '--json'], env)).code).toBe(0);
 
     const original = JSON.parse(await readFile(planPath, 'utf8')) as {
-      operations: Array<{ kind: string; path: string }>;
+      operations: Array<{ id: string; kind: string; path: string }>;
     };
 
     const missingCleanup = {
       ...original,
-      operations: original.operations.filter(
-        (operation) => operation.path !== 'planning/harness-updates/README.md',
-      ),
+      operations: original.operations
+        .filter((operation) => operation.path !== 'planning/harness-updates/README.md')
+        .map((operation, index) => ({
+          ...operation,
+          id: `op-${String(index + 1).padStart(4, '0')}`,
+        })),
     };
     await writeFile(planPath, `${JSON.stringify(missingCleanup, null, 2)}\n`, 'utf8');
 
