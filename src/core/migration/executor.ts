@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { findGitRoot } from '../git.js';
@@ -145,10 +145,10 @@ async function assertProjectIdentity(plan: MigrationPlan): Promise<string> {
   if (plan.source.projectRoot === null) {
     throw new MigrationExecutionError('PLAN_INVALID', 'Migration plan has no source project root.');
   }
-  const plannedRoot = path.resolve(plan.source.projectRoot);
+  const plannedRoot = await realpath(path.resolve(plan.source.projectRoot));
   let actualRoot: string;
   try {
-    actualRoot = path.resolve(await findGitRoot(plannedRoot));
+    actualRoot = await realpath(await findGitRoot(plannedRoot));
   } catch (error) {
     throw new MigrationExecutionError('PROJECT_IDENTITY_MISMATCH', 'Planned project is no longer a Git repository.', {
       plannedRoot,
