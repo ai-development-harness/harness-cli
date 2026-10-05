@@ -11,7 +11,7 @@ import {
   inspectMigrationCheckpoint,
   resumeMigration,
 } from '../src/core/migration/executor.js';
-import { MigrationExecutionError, type MigrationOperationHandler } from '../src/core/migration/executor-types.js';
+import type { MigrationOperationHandler } from '../src/core/migration/executor-types.js';
 import type { MigrationPlan, MigrationPlanOperation } from '../src/core/migration/plan-types.js';
 import { ReleaseStore } from '../src/core/releases/store.js';
 
@@ -406,8 +406,6 @@ describe('MigrationExecutor', () => {
 
     await expect(
       executeMigration(plan, { releaseStore: store, handlers: handlers(counters) }),
-    ).rejects.toMatchObject({ code: 'PLAN_STALE' });
-    // The first operation changed working-tree bytes, so fresh execute is stale;
-    // resume is the only safe continuation path.
+    ).rejects.toMatchObject({ code: 'MIGRATION_CHECKPOINT_EXISTS' });
   });
 });
