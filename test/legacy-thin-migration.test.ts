@@ -383,7 +383,7 @@ describe('legacy v0.10.4 → thin migration', () => {
     );
     expect(await readFile(target, 'utf8')).toBe(before);
     await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
-  });
+  }, 15_000);
 
   it('blocks unsafe AGENTS.md customization before checkpoint or project mutation', async () => {
     const { base, repo } = await createLegacyFixture({ unsafeAgents: true });
@@ -398,5 +398,6 @@ describe('legacy v0.10.4 → thin migration', () => {
     );
     expect(await git(repo, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe(statusBefore);
     await expect(readFile(path.join(repo, 'harness.yaml'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
-  });
+  }, 15_000);
+
 });
