@@ -276,7 +276,7 @@ resolver релизов
 
 ## 6. Этап 3 — миграция существующих repository-embedded проектов
 
-**Статус: в работе. Issue #15 завершил read-only ProjectInspector/baseline/ownership; issue #16 реализует deterministic MigrationPlanner и полный dry-run plan.**
+**Статус: в работе. Issues #15 и #16 завершили read-only Inspector и deterministic Planner; issue #17 реализует checkpointed MigrationExecutor с journal/resume/recovery.**
 
 Нужно поддержать существующие проекты, в которых Harness Core хранится внутри самого репозитория.
 
