@@ -47,6 +47,9 @@ function fixture(rootCommand: string, options: { orchestration?: boolean } = {})
 
   const execution: ProtocolExecutionAdapter = {
     startExecution: vi.fn(async () => current),
+    currentExecution: vi.fn(async () =>
+      current.status === 'running' ? current : null
+    ),
     beginCommand: vi.fn(async (_projectRoot, _root, command) => {
       current = { ...current, current: { ...current.current, command, status: 'running', result: null } };
       return current;
@@ -139,6 +142,49 @@ describe('ProtocolEngine', () => {
       expect.objectContaining({ expectedExecutionId: 'exec-test' }),
     );
     expect(result).toMatchObject({ kind: 'terminal', status: 'DONE' });
+  });
+
+  it('rejects stale semantic completion before deterministic commit is invoked', async () => {
+    const { execution, ports } = fixture('STEP PLAN STEP-001');
+    const engine = new ProtocolEngine('/project', ports, { execution });
+    const handoff = await engine.start('STEP PLAN STEP-001');
+    expect(handoff).toMatchObject({ kind: 'semantic-handoff' });
+
+    const stale = {
+      ...(handoff as Extract<typeof handoff, { kind: 'semantic-handoff' }>),
+      executionId: 'exec-stale',
+      context: { tampered: true },
+    };
+
+    const result = await engine.completeSemantic(stale, { plan: 'proposal' });
+
+    expect(result).toMatchObject({
+      kind: 'blocked',
+      reasonCode: 'STALE_SEMANTIC_RESULT',
+      executionId: 'exec-stale',
+    });
+    expect(ports.commitSemanticProposal).not.toHaveBeenCalled();
+    expect(execution.completeCurrent).not.toHaveBeenCalled();
+  });
+
+  it('uses trusted execution context rather than caller-returned handoff context', async () => {
+    const { execution, ports } = fixture('STEP PLAN STEP-001');
+    const engine = new ProtocolEngine('/project', ports, { execution });
+    const handoff = await engine.start('STEP PLAN STEP-001');
+    expect(handoff).toMatchObject({ kind: 'semantic-handoff' });
+
+    const tampered = {
+      ...(handoff as Extract<typeof handoff, { kind: 'semantic-handoff' }>),
+      context: { callerInjected: 'must-not-cross-trust-boundary' },
+    };
+    await engine.completeSemantic(tampered, { plan: 'proposal' });
+
+    expect(ports.commitSemanticProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: {},
+        proposal: { plan: 'proposal' },
+      }),
+    );
   });
 
   it('routes STEP RUN through deterministic orchestration before semantic handoff', async () => {

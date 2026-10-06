@@ -853,6 +853,17 @@ export async function resolveRoot(
   return resolveExecutionInternal(projectRoot, state, latest.value, false);
 }
 
+export async function currentExecution(
+  projectRoot: string,
+  rootCommand: string,
+): Promise<ExecutionRecord | null> {
+  const normalized = normalizedRoot(rootCommand);
+  const state = await loadExecutionState(projectRoot);
+  const execution = latestActive(state, normalized.rootCommand);
+  if (!execution || execution.status !== 'running') return null;
+  return execution;
+}
+
 export async function unresolvedExecutions(
   projectRoot: string,
   options: { readonly mutate?: boolean } = {},

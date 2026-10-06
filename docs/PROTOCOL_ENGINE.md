@@ -51,8 +51,77 @@ The engine blocks on:
 - blocked or missing execution state;
 - engine step-limit exhaustion.
 
-Stale semantic completion remains protected by the execution-state service's exact `expectedExecutionId` ownership check.
+Stale semantic completion is rejected **before** `commitSemanticProposal` is invoked. Core reloads the active execution, verifies the exact `executionId`, canonical root command and current command, and supplies the trusted execution context to the commit boundary. The caller-returned completion DTO cannot contain context, skill, reasoning metadata or transition state. The execution-state service still performs its exact `expectedExecutionId` check as a second line of defense.
 
 ## Runtime boundary
 
 Codex/Claude and other AI runtimes are external callers. Their process lifecycle, auth, model/effort and SDKs are intentionally outside Harness CLI/Core; the engine exposes only deterministic state coordination and semantic handoff/result boundaries.
+
+
+## External caller machine boundary v1
+
+Stage 5 exposes the pinned release-owned engine through the Core Host API operation:
+
+`protocol/external-call`
+
+The CLI transport is:
+
+`harness protocol machine`
+
+It reads exactly one bounded JSON request from stdin and emits one machine-readable JSON response.
+
+### Start
+
+```json
+{
+  "schemaVersion": 1,
+  "operation": "start",
+  "command": "STEP PLAN STEP-024"
+}
+```
+
+The result is a deterministic terminal/blocker or a `semantic-handoff`.
+
+### Resume
+
+```json
+{
+  "schemaVersion": 1,
+  "operation": "resume",
+  "rootCommand": "STEP RUN STEP-024"
+}
+```
+
+Resume uses the existing Git-private execution state. No runtime process identifier or runtime SDK appears in the contract.
+
+### Semantic completion
+
+```json
+{
+  "schemaVersion": 1,
+  "operation": "semantic-complete",
+  "completion": {
+    "schemaVersion": 1,
+    "executionId": "exec-...",
+    "rootCommand": "PROJECT QUICK FIX: example",
+    "command": "PROJECT QUICK FIX: example"
+  },
+  "proposal": {
+    "schemaVersion": 1,
+    "result": "SUCCESS",
+    "details": {}
+  }
+}
+```
+
+The completion identity deliberately contains no handoff context. Core reloads the current execution and treats proposal content as untrusted input before committing the command result and transition.
+
+The immutable release ships JSON Schemas for:
+
+- `schemas/semantic-handoff.schema.json`;
+- `schemas/external-caller-request.schema.json`;
+- `schemas/semantic-proposal.schema.json`.
+
+## Explicit non-goals
+
+This boundary does not launch, select, authenticate, configure, cancel, supervise or resume an AI runtime process. Claude Code, Codex and other runtimes remain independent external callers.

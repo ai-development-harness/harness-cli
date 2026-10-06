@@ -132,6 +132,67 @@ export async function buildHarnessRelease(options: BuildHarnessReleaseOptions) {
     },
     additionalProperties: true,
   }, null, 2)}\n`);
+  await writeFile(path.join(outputRoot, 'schemas', 'external-caller-request.schema.json'), `${JSON.stringify({
+    '$schema': 'https://json-schema.org/draft/2020-12/schema',
+    title: 'Harness External Caller Request v1',
+    oneOf: [
+      {
+        type: 'object',
+        required: ['schemaVersion', 'operation', 'command'],
+        properties: {
+          schemaVersion: { const: 1 },
+          operation: { const: 'start' },
+          command: { type: 'string', minLength: 1 },
+        },
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        required: ['schemaVersion', 'operation', 'rootCommand'],
+        properties: {
+          schemaVersion: { const: 1 },
+          operation: { const: 'resume' },
+          rootCommand: { type: 'string', minLength: 1 },
+        },
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        required: ['schemaVersion', 'operation', 'completion', 'proposal'],
+        properties: {
+          schemaVersion: { const: 1 },
+          operation: { const: 'semantic-complete' },
+          completion: {
+            type: 'object',
+            required: ['schemaVersion', 'executionId', 'rootCommand', 'command'],
+            properties: {
+              schemaVersion: { const: 1 },
+              executionId: { type: 'string', minLength: 1 },
+              rootCommand: { type: 'string', minLength: 1 },
+              command: { type: 'string', minLength: 1 },
+            },
+            additionalProperties: false,
+          },
+          proposal: {},
+        },
+        additionalProperties: false,
+      },
+    ],
+  }, null, 2)}\n`);
+
+  await writeFile(path.join(outputRoot, 'schemas', 'semantic-proposal.schema.json'), `${JSON.stringify({
+    '$schema': 'https://json-schema.org/draft/2020-12/schema',
+    title: 'Harness Semantic Proposal Result v1',
+    type: 'object',
+    required: ['schemaVersion', 'result'],
+    properties: {
+      schemaVersion: { const: 1 },
+      result: { enum: ['PASS', 'SUCCESS', 'FAIL', 'BLOCKED'] },
+      details: { type: 'object' },
+    },
+    additionalProperties: true,
+  }, null, 2)}\n`);
+
   await writeFile(path.join(outputRoot, 'schemas', 'core-host-result.schema.json'), `${JSON.stringify({
     '$schema': 'https://json-schema.org/draft/2020-12/schema',
     title: 'Harness Core Host API v1 Result',

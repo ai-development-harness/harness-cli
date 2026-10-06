@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { configCommand } from './commands/config.js';
 import { gitCheckCommand } from './commands/git-check.js';
+import { protocolMachineCommand } from './commands/protocol-machine.js';
 import { doctorCommand } from './commands/doctor.js';
 import {
   releaseInstallCommand,
@@ -73,6 +74,15 @@ program
   .action((options: { json?: boolean }) =>
     statusCommand(process.cwd(), { json: options.json ?? false }),
   );
+
+const protocol = program
+  .command('protocol')
+  .description('Machine-readable ProtocolEngine boundary for external callers');
+
+protocol
+  .command('machine')
+  .description('Read one external-caller JSON request from stdin and write one JSON response')
+  .action(() => protocolMachineCommand(process.cwd()));
 
 const git = program
   .command('git')

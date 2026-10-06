@@ -46,6 +46,7 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 - `harness step show STEP-NNN` — read-only подробное состояние STEP; также принимает canonical numeric form `NNN`;
 - `harness step next` — read-only рекомендация следующей канонической STEP-команды;
 - `harness git check` — read-only snapshot Git state и typed precondition diagnostics для commit/push/PR/sync;
+- `harness protocol machine` — stdin/stdout JSON boundary к ProtocolEngine выбранного project-pinned immutable release;
 - `harness update check [--target-release X.Y.Z]` — read-only построить deterministic update plan поверх установленных releases;
 - `harness update apply [--target-release X.Y.Z]` — применить update release pin через Core UpdateService с его locking/checkpoint/recovery semantics;
 - `harness release install <directory>` — установить локальный проверенный release tree;
@@ -70,6 +71,8 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 CLI **не запускает Claude Code или Codex**.
 
 `git check` использует release-owned Git safety policy и read-only local Git adapter. Команда не выполняет `fetch`, `commit`, `push`, `merge`, переключение/создание веток или provider mutations. Она возвращает factual branch/HEAD/worktree/remote-tracking state и отдельные typed precondition diagnostics для будущих canonical Git actions.
+
+`protocol machine` всегда разрешает exact `harness.release` через Core Host API и принимает один JSON request из stdin. Операции v1: `start`, `resume`, `semantic-complete`. Semantic handoff является output-only контекстом: при completion caller возвращает только `executionId`, `rootCommand`, `command` и factual proposal. Core повторно читает текущее Git-private execution state до commit, поэтому stale/tampered completion не может вызвать semantic commit или продвинуть canonical transition.
 
 `update check` ничего не записывает в проект. Без `--target-release` Core выбирает самый новый verified installed release новее текущего pin. Явная цель должна быть уже установлена и проверяема; CLI не использует `latest`, `main` или сетевой fallback. `update apply` не реализует собственные update rules: compatibility checks, write lock, checkpoint и crash recovery остаются внутри `UpdateService`.
 
@@ -123,6 +126,7 @@ npm run dev -- step list --json
 npm run dev -- step show 001 --json
 npm run dev -- step next --json
 npm run dev -- git check --json
+printf '%s' '{"schemaVersion":1,"operation":"start","command":"PROJECT STATUS"}' | npm run dev -- protocol machine
 npm run dev -- update check --json
 npm run dev -- update apply --target-release 0.11.0 --json
 npm run dev -- migrate inspect
