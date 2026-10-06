@@ -115,7 +115,7 @@ npm run build
 ```bash
 npm run dev -- release install ./path/to/release
 npm run dev -- release list
-npm run dev -- release verify 0.10.4
+npm run dev -- release verify 0.11.0
 npm run dev -- setup
 npm run dev -- doctor
 npm run dev -- config --json
@@ -223,7 +223,7 @@ protocol:
 
 ## План работ
 
-Канонический план реализации хранится в [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Канонический план реализации хранится в [`docs/ROADMAP.md`](docs/ROADMAP.md). Stage 5 deterministic CLI/Core surface завершён; проверяемая parity-матрица находится в [`docs/STAGE5_PARITY.md`](docs/STAGE5_PARITY.md).
 
 Продуктовый контракт находится в [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) и использует стабильные идентификаторы `CLI-REQ-XXX`.
 
