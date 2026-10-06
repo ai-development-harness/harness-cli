@@ -11,6 +11,7 @@ export interface GitRepositorySnapshot {
 export interface GitRemoteRelation {
   readonly remote: string;
   readonly branch: string;
+  readonly remoteExists?: boolean;
   readonly remoteHead: GitOid | null;
   readonly ahead: number;
   readonly behind: number;
@@ -59,6 +60,43 @@ export interface GitCheckResult {
   readonly head: GitOid | null;
   readonly worktree: GitRepositorySnapshot;
   readonly relation: GitRemoteRelation;
+}
+
+export type GitCheckObservationCode =
+  | 'PROTECTED_BRANCH'
+  | 'DIRTY_WORKTREE'
+  | 'REMOTE_MISSING'
+  | 'UNPUBLISHED_BRANCH'
+  | 'REMOTE_AHEAD'
+  | 'LOCAL_AHEAD'
+  | 'DIVERGED'
+  | 'PULL_REQUEST_BASE_BRANCH';
+
+export interface GitCheckObservation {
+  readonly code: GitCheckObservationCode;
+  readonly message: string;
+  readonly details: Readonly<Record<string, unknown>>;
+}
+
+export interface GitPreflightDiagnostic {
+  readonly action: 'commit' | 'push' | 'pull-request' | 'sync';
+  readonly status: 'READY' | 'BLOCKED';
+  readonly plan?: GitMutationPlan;
+  readonly reasonCode?: string;
+  readonly message?: string;
+  readonly details?: Readonly<Record<string, unknown>>;
+}
+
+export interface GitCheckReport extends GitCheckResult {
+  readonly schemaVersion: 1;
+  readonly status: 'PASS';
+  readonly configured: {
+    readonly pushRemote: string;
+    readonly pullRequestBase: string;
+    readonly syncMode: GitWorkflowPolicy['syncMode'];
+  };
+  readonly observations: readonly GitCheckObservation[];
+  readonly preconditions: readonly GitPreflightDiagnostic[];
 }
 
 export interface PullRequestFinishPlan {
