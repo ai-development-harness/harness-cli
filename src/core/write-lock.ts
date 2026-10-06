@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { hostname as systemHostname } from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { resolveHarnessStatePath } from './git.js';
 
 const LOCK_FILE = 'core-write.lock.json';
@@ -22,6 +23,9 @@ export interface CoreWriteLockDependencies {
   readonly hostname?: () => string;
   readonly pid?: number;
   readonly isProcessAlive?: (pid: number) => boolean;
+  readonly contention?: 'fail' | 'wait-same-kind';
+  readonly waitTimeoutMs?: number;
+  readonly pollIntervalMs?: number;
 }
 
 export class CoreWriteLockError extends Error {
@@ -158,7 +162,12 @@ export async function acquireCoreWriteLock(
   dependencies: CoreWriteLockDependencies = {},
 ): Promise<CoreWriteLockLease> {
   let acquired: { path: string; owner: CoreWriteLockOwner } | null = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const contention = dependencies.contention ?? 'fail';
+  const timeoutMs = dependencies.waitTimeoutMs ?? 30_000;
+  const pollIntervalMs = dependencies.pollIntervalMs ?? 10;
+  const started = Date.now();
+
+  while (acquired === null) {
     try {
       acquired = await createLock(projectRoot, kind, operationId, metadata, dependencies);
       break;
@@ -167,25 +176,24 @@ export async function acquireCoreWriteLock(
       const lockPath = await coreWriteLockPath(projectRoot);
       const owner = await readOwner(lockPath);
       if (owner === null) continue;
-      if (active(owner, dependencies)) {
+
+      if (!active(owner, dependencies)) {
+        // Dead same-host process. Remove only the generation we just inspected.
+        const current = await readOwner(lockPath);
+        if (current?.ownerId === owner.ownerId) await unlink(lockPath);
+        continue;
+      }
+
+      const mayWait = contention === 'wait-same-kind' && owner.kind === kind;
+      if (!mayWait || Date.now() - started >= timeoutMs) {
         throw new CoreWriteLockError(
           'CORE_WRITE_LOCK_ACTIVE',
           `Another Core write execution is active: ${owner.kind}/${owner.operationId}.`,
           { lockPath, owner },
         );
       }
-      // Dead same-host process. Remove only the generation we just inspected.
-      const current = await readOwner(lockPath);
-      if (current?.ownerId !== owner.ownerId) continue;
-      await unlink(lockPath);
+      await delay(pollIntervalMs);
     }
-  }
-
-  if (!acquired) {
-    throw new CoreWriteLockError(
-      'CORE_WRITE_LOCK_ACTIVE',
-      'Could not acquire Core write execution lock.',
-    );
   }
 
   let released = false;
