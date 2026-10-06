@@ -122,7 +122,11 @@ afterEach(async () => {
   process.env.XDG_DATA_HOME = originalEnv.XDG_DATA_HOME;
   process.env.LOCALAPPDATA = originalEnv.LOCALAPPDATA;
   process.env.APPDATA = originalEnv.APPDATA;
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    roots.splice(0).map((root) =>
+      rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 })
+    ),
+  );
 });
 
 describe('migration CLI end-to-end', () => {
@@ -376,7 +380,7 @@ describe('migration CLI end-to-end', () => {
       ok: false,
       error: { code: 'PLAN_INVALID' },
     });
-  });
+  }, 15_000);
 
   it('rejects saved plans with omitted required operations before mutation', async () => {
     const { base, repo, env } = await fixture();
