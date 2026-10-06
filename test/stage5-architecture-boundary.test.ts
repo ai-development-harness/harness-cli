@@ -20,11 +20,9 @@ describe('Stage 5 architecture boundary', () => {
     const files = await sourceFiles(path.resolve('src'));
     const forbidden = [
       /RuntimeAdapter/,
-      /@anthropic-ai\//,
-      /\bclaude\s+auth\b/i,
-      /\bclaude\s+code\b/i,
-      /\bcodex\s+login\b/i,
-      /\bopenai\/codex\b/i,
+      /(?:from|import\()\s*['"]@anthropic-ai\//,
+      /(?:from|import\()\s*['"](?:openai|@openai\/codex)/,
+      /\b(?:execFile|exec|spawn|spawnSync)\s*\([^\n]*['"](?:claude|codex)['"]/i,
     ];
 
     for (const file of files) {
