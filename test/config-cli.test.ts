@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -41,12 +41,17 @@ async function runCli(cwd: string, args: readonly string[]): Promise<CliResult> 
 }
 
 async function repositoryFixture(config?: string): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), 'harness-cli-config-surface-'));
-  roots.push(root);
-  await execFileAsync('git', ['init'], { cwd: root, encoding: 'utf8' });
+  const createdRoot = await mkdtemp(path.join(tmpdir(), 'harness-cli-config-surface-'));
+  await execFileAsync('git', ['init'], { cwd: createdRoot, encoding: 'utf8' });
   if (config !== undefined) {
-    await writeFile(path.join(root, 'harness.yaml'), config, 'utf8');
+    await writeFile(path.join(createdRoot, 'harness.yaml'), config, 'utf8');
   }
+
+  // Production findGitRoot() returns realpath(), which intentionally
+  // canonicalizes aliases such as /var -> /private/var on macOS and expands
+  // Windows 8.3 short paths. Use the same identity in cross-platform assertions.
+  const root = await realpath(createdRoot);
+  roots.push(root);
   return root;
 }
 
