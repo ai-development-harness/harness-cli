@@ -88,9 +88,9 @@ export function jsonSuccess<T extends Readonly<Record<string, unknown>>>(
   fields: T,
 ): Readonly<{ schemaVersion: 1; ok: true } & T> {
   return {
+    ...fields,
     schemaVersion: 1,
     ok: true,
-    ...fields,
   };
 }
 
@@ -104,11 +104,11 @@ export function jsonFailure(
   } = {},
 ): Readonly<Record<string, unknown>> {
   return {
+    ...(options.fields ?? {}),
     schemaVersion: 1,
     ok: false,
     status: options.status ?? (category === 'blocked' ? 'blocked' : 'error'),
     category,
-    ...(options.fields ?? {}),
     error: structuredError(error, options.fallbackCode),
   };
 }
