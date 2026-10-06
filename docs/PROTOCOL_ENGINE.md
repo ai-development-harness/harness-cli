@@ -55,4 +55,4 @@ Stale semantic completion remains protected by the execution-state service's exa
 
 ## Runtime boundary
 
-Codex/Claude adapters, Commander presentation, GUI and transport are intentionally outside this module.
+Codex/Claude and other AI runtimes are external callers. Their process lifecycle, auth, model/effort and SDKs are intentionally outside Harness CLI/Core; the engine exposes only deterministic state coordination and semantic handoff/result boundaries.
