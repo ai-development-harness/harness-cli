@@ -17,6 +17,13 @@ import { UpdateService, type UpdatePlan } from '../src/core/update/index.js';
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
 
+async function tempStoreRoot(): Promise<string> {
+  const createdRoot = await mkdtemp(path.join(tmpdir(), 'harness-cli-update-store-'));
+  const root = await realpath(createdRoot);
+  roots.push(root);
+  return root;
+}
+
 async function repositoryFixture(): Promise<string> {
   const createdRoot = await mkdtemp(path.join(tmpdir(), 'harness-cli-update-surface-'));
   await execFileAsync('git', ['init'], { cwd: createdRoot, encoding: 'utf8' });
@@ -104,7 +111,7 @@ describe('harness update CLI', () => {
 
   it('runs check through UpdateService without mutating project configuration', async () => {
     const root = await repositoryFixture();
-    const storeRoot = path.join(root, '.test-release-store');
+    const storeRoot = await tempStoreRoot();
     const before = await readFile(path.join(root, 'harness.yaml'), 'utf8');
     const beforeStatus = await execFileAsync(
       'git',
@@ -146,6 +153,7 @@ describe('harness update CLI', () => {
     const plan: UpdatePlan = {
       ...readyPlan(),
       status: 'blocked',
+      targetRelease: '9.9.9',
       targetDigest: null,
       targetProjectSchemaVersion: null,
       blockers: [{
@@ -181,7 +189,7 @@ describe('harness update CLI', () => {
       status: 'blocked',
       category: 'blocked',
       currentRelease: '1.0.0',
-      targetRelease: '1.1.0',
+      targetRelease: '9.9.9',
       error: {
         code: 'UPDATE_BLOCKED',
       },
@@ -229,7 +237,7 @@ describe('harness update CLI', () => {
 
   it('fails closed through UpdateService when apply target is unavailable', async () => {
     const root = await repositoryFixture();
-    const storeRoot = path.join(root, '.test-release-store');
+    const storeRoot = await tempStoreRoot();
     const before = await readFile(path.join(root, 'harness.yaml'), 'utf8');
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
