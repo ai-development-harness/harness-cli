@@ -12,5 +12,6 @@ export type {
   RuntimePreconditionRequest,
   RuntimePreconditionResult,
   SemanticCommitRequest,
+  SemanticCompletionIdentityV1,
   SemanticHandoffV1,
 } from './types.js';
