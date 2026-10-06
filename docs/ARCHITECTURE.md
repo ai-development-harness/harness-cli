@@ -204,6 +204,25 @@ Read-modify-write transactions используют shared `CoreWriteLock`; migr
 
 Связанные требования: `CLI-REQ-053`–`CLI-REQ-056`, `CLI-REQ-145`–`CLI-REQ-148`, `CLI-REQ-223`, `CLI-REQ-240`–`CLI-REQ-253`.
 
+### 4.3.5 Review / Verification / Completion Module
+
+`src/core/review/` owns the deterministic boundary between semantic proposals and trusted project state:
+
+- shell-free Verification execution and freshness proof;
+- exact repository/review surface fingerprints;
+- deterministic security/tests reviewer gates;
+- Review Contract v2 and stable finding identity;
+- immutable STEP/planning review writers;
+- Completion Convergence Gate and completion proof;
+- bounded progress telemetry;
+- adaptive repair-cycle stopping.
+
+Runtime/model output is a proposal only. Canonical report creation, STEP lifecycle mutation and execution-cursor commit remain Core-owned and are bound to exact `executionId` plus revision/basis expectations.
+
+Normative description: `docs/REVIEW_COMPLETION.md`.
+
+Related requirements: `CLI-REQ-003`, `CLI-REQ-140`–`CLI-REQ-148`, `CLI-REQ-182`, `CLI-REQ-210`–`CLI-REQ-215`, `CLI-REQ-251`–`CLI-REQ-254`.
+
 ### 4.4 Storage Module
 
 Отвечает за три независимых класса storage:
