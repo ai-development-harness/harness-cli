@@ -544,6 +544,34 @@ describe('ExecutionStateService', () => {
     )).toBe(true);
   });
 
+  it('serializes concurrent execution-state RMW without duplicate active records', async () => {
+    const { repo } = await repositoryFixture();
+    const values = await Promise.all(
+      Array.from({ length: 8 }, () => startExecution(repo, 'PROJECT STATUS')),
+    );
+    expect(new Set(values.map((item) => item.executionId)).size).toBe(1);
+
+    const state = await readExecutionState(repo);
+    expect(state.executions).toHaveLength(1);
+    expect(state.executions[0].current.attempt).toBe(8);
+    expect(state.nextOrdinal).toBe(2);
+  });
+
+  it('fails closed when bounded command details exceed 16 KiB', async () => {
+    const { repo } = await repositoryFixture();
+    const execution = await startExecution(repo, 'PROJECT STATUS');
+    await expect(
+      completeCurrent(repo, execution.rootCommand, 'SUCCESS', {
+        expectedExecutionId: execution.executionId,
+        details: { payload: 'x'.repeat(17 * 1024) },
+      }),
+    ).rejects.toMatchObject({ code: 'EXECUTION_STATE_CORRUPT' });
+
+    const state = await readExecutionState(repo);
+    expect(state.executions).toHaveLength(1);
+    expect(state.executions[0].current.status).toBe('running');
+  });
+
   it('uses one Core write concurrency model for migrations and execution state', async () => {
     const { repo } = await repositoryFixture();
     const migration = await acquireMigrationExecutionLock(repo, 'migration-concurrency', 'apply');
