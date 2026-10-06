@@ -11,6 +11,13 @@ export interface EngineCommandIdentity {
   readonly input: string | null;
 }
 
+export interface SemanticCompletionIdentityV1 {
+  readonly schemaVersion: 1;
+  readonly executionId: string;
+  readonly rootCommand: string;
+  readonly command: string;
+}
+
 export interface SemanticHandoffV1 extends EngineCommandIdentity {
   readonly schemaVersion: 1;
   readonly kind: 'semantic-handoff';
