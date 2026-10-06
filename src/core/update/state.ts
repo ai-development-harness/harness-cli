@@ -65,28 +65,28 @@ export async function writeUpdateCheckpoint(
 ): Promise<UpdateCheckpoint> {
   const previous = await readUpdateCheckpoint(projectRoot);
   const now = new Date().toISOString();
-  if (previous) {
-    if (
-      previous.operationId !== next.operationId ||
-      previous.currentRelease !== next.currentRelease ||
-      previous.targetRelease !== next.targetRelease ||
-      previous.targetDigest !== next.targetDigest
-    ) {
-      throw new UpdateError(
-        'UPDATE_STATE_CONFLICT',
-        'Another Harness update checkpoint is already active for this worktree.',
-        { existing: previous, requestedOperationId: next.operationId },
-      );
-    }
-    if (PHASES.indexOf(next.phase) < PHASES.indexOf(previous.phase)) {
-      throw new UpdateError('UPDATE_STATE_CONFLICT', 'Harness update checkpoint phase cannot move backwards.');
-    }
+  const sameOperation =
+    previous !== null &&
+    previous.operationId === next.operationId &&
+    previous.currentRelease === next.currentRelease &&
+    previous.targetRelease === next.targetRelease &&
+    previous.targetDigest === next.targetDigest;
+
+  if (previous && !sameOperation && previous.phase !== 'verified') {
+    throw new UpdateError(
+      'UPDATE_STATE_CONFLICT',
+      'Another Harness update checkpoint is already active for this worktree.',
+      { existing: previous, requestedOperationId: next.operationId },
+    );
+  }
+  if (previous && sameOperation && PHASES.indexOf(next.phase) < PHASES.indexOf(previous.phase)) {
+    throw new UpdateError('UPDATE_STATE_CONFLICT', 'Harness update checkpoint phase cannot move backwards.');
   }
 
   const checkpoint: UpdateCheckpoint = {
     schemaVersion: 1,
     ...next,
-    createdAt: previous?.createdAt ?? now,
+    createdAt: sameOperation ? previous!.createdAt : now,
     updatedAt: now,
   };
   const errors = validate(checkpoint);
