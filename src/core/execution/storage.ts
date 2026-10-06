@@ -131,8 +131,33 @@ function validateExecution(value: unknown, prefix: string): string[] {
     if (current.context?.implementationBaseline !== undefined) {
       errors.push(...validateBaseline(current.context.implementationBaseline, `${prefix}.current.context.implementationBaseline`));
     }
-    if (current.context?.progress?.samples && current.context.progress.samples.length > MAX_PROGRESS_SAMPLES) {
-      errors.push(`${prefix}.current.context.progress.samples exceeds ${MAX_PROGRESS_SAMPLES}`);
+    if (current.context?.progress !== undefined) {
+      const progress = current.context.progress as any;
+      if (
+        typeof progress !== 'object' ||
+        progress === null ||
+        progress.schemaVersion !== 1 ||
+        !Array.isArray(progress.samples)
+      ) {
+        errors.push(`${prefix}.current.context.progress must be telemetry schemaVersion=1`);
+      } else if (progress.samples.length > MAX_PROGRESS_SAMPLES) {
+        errors.push(`${prefix}.current.context.progress.samples exceeds ${MAX_PROGRESS_SAMPLES}`);
+      }
+    }
+    if (current.context?.reviewExpectation !== undefined) {
+      const expectation = current.context.reviewExpectation as any;
+      if (
+        typeof expectation !== 'object' ||
+        expectation === null ||
+        expectation.schemaVersion !== 1 ||
+        typeof expectation.stepId !== 'string' ||
+        !/^STEP-\d{3,}$/.test(expectation.stepId) ||
+        typeof expectation.gateBasis !== 'string' ||
+        typeof expectation.contextBasis !== 'string' ||
+        typeof expectation.verificationBasis !== 'string'
+      ) {
+        errors.push(`${prefix}.current.context.reviewExpectation is invalid`);
+      }
     }
     if (current.details !== undefined && jsonBytes(current.details) > MAX_DETAILS_BYTES) {
       errors.push(`${prefix}.current.details exceeds ${MAX_DETAILS_BYTES} UTF-8 JSON bytes`);
