@@ -11,7 +11,7 @@ import type {
 } from '../project/index.js';
 import { normalizeExecutionGroups, implementationPlanStepCount } from './execution-groups.js';
 import { activeBlockingPrinciples } from './principles.js';
-import { contentHash, stableHash } from './hash.js';
+import { contentHash, normalizeText, stableHash } from './hash.js';
 
 const REQUIREMENT_SECTIONS = ['Requirement', 'Rationale', 'Acceptance'] as const;
 const ADR_SECTIONS = [
@@ -136,7 +136,7 @@ async function architectureRefSnapshot(
   } catch {
     throw new Error(`architecture ref file not found: ${ref}`);
   }
-  if (fragment === undefined) return { ref, content: text.trim().replace(/[ \t]+$/gm, '') };
+  if (fragment === undefined) return { ref, content: normalizeText(text) };
   if (!fragment) throw new Error(`architecture ref has empty anchor: ${ref}`);
 
   const normalized = text.replace(/\r\n/g, '\n');
@@ -146,7 +146,7 @@ async function architectureRefSnapshot(
   if (!selected) throw new Error(`architecture anchor not found: ${ref}`);
   const next = headings.find((item) => item.line > selected.line && item.level <= selected.level);
   const body = lines.slice(selected.line, next?.line ?? lines.length).join('\n');
-  return { ref, content: body.trim().replace(/[ \t]+$/gm, '') };
+  return { ref, content: normalizeText(body) };
 }
 
 function relevantOpenQuestions(
