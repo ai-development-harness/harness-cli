@@ -9,6 +9,13 @@ import {
   validateCommandText,
 } from '../protocol/index.js';
 import { acquireCoreWriteLock } from '../write-lock.js';
+import { captureReviewExpectation } from '../review/expectation.js';
+import {
+  captureProgress,
+  observeResume as observeProgressResume,
+  observeTransition as observeProgressTransition,
+} from '../review/progress.js';
+import { repairCycleDecision } from '../review/repair.js';
 import { ExecutionStateError } from './errors.js';
 import { captureIntentBasis, intentResumeBlocker, throwIntentBlocker } from './intent.js';
 import {
@@ -134,12 +141,21 @@ async function commandContext(
   projectRoot: string,
   command: string,
   baseline?: StepRecoveryBaseline,
-): Promise<ExecutionCommandContext> {
+  previousProgress?: ExecutionCommandContext['progress'],
+): Promise<Readonly<{
+  context: ExecutionCommandContext;
+  progressBlocker?: Readonly<Record<string, unknown>>;
+}>> {
   const context: {
     intentBasis?: Awaited<ReturnType<typeof captureIntentBasis>>;
     intentBasisError?: { reasonCode: 'INTENT_BASIS_UNAVAILABLE'; message: string };
     implementationBaseline?: StepRecoveryBaseline;
+    reviewExpectation?: Awaited<ReturnType<typeof captureReviewExpectation>>;
+    reviewExpectationError?: { reasonCode: 'REVIEW_EXPECTATION_UNAVAILABLE'; message: string };
+    progress?: ExecutionCommandContext['progress'];
   } = {};
+
+  const parsed = parseCanonicalCommand(command);
   try {
     const intentBasis = await captureIntentBasis(projectRoot, command);
     if (intentBasis) context.intentBasis = intentBasis;
@@ -151,8 +167,91 @@ async function commandContext(
       message: (error as Error).message,
     };
   }
+
   if (baseline) context.implementationBaseline = baseline;
-  return context as ExecutionCommandContext;
+
+  if (
+    parsed.valid &&
+    parsed.domain === 'STEP' &&
+    parsed.operation === 'REVIEW' &&
+    parsed.target
+  ) {
+    try {
+      context.reviewExpectation = await captureReviewExpectation(
+        projectRoot,
+        parsed.target,
+        baseline?.gitHead ?? null,
+      );
+    } catch (error) {
+      context.reviewExpectationError = {
+        reasonCode: 'REVIEW_EXPECTATION_UNAVAILABLE',
+        message: (error as Error).message,
+      };
+    }
+  }
+
+  let progressBlocker: Readonly<Record<string, unknown>> | undefined;
+  if (
+    parsed.valid &&
+    parsed.domain === 'STEP' &&
+    parsed.target &&
+    ['PLAN', 'IMPLEMENT', 'REVIEW', 'FIX'].includes(parsed.operation)
+  ) {
+    try {
+      const sample = await captureProgress(
+        projectRoot,
+        parsed.target,
+        parsed.normalized,
+        parsed.operation as 'PLAN' | 'IMPLEMENT' | 'REVIEW' | 'FIX',
+      );
+      const observed = observeProgressTransition(previousProgress, sample, {
+        suppressStop: parsed.operation === 'REVIEW' || parsed.operation === 'FIX',
+      });
+      context.progress = observed.telemetry;
+      progressBlocker = observed.blocker ?? undefined;
+    } catch {
+      // Progress telemetry is a guard. If canonical facts cannot be sampled,
+      // intent/review contracts still remain authoritative and resume-safe.
+    }
+  }
+
+  return {
+    context: context as ExecutionCommandContext,
+    ...(progressBlocker ? { progressBlocker } : {}),
+  };
+}
+
+async function observeSemanticResume(
+  projectRoot: string,
+  execution: ExecutionRecord,
+): Promise<Readonly<Record<string, unknown>> | null> {
+  const parsed = parseCanonicalCommand(execution.current.command);
+  if (
+    !parsed.valid ||
+    parsed.domain !== 'STEP' ||
+    !parsed.target ||
+    !['PLAN', 'IMPLEMENT', 'REVIEW', 'FIX'].includes(parsed.operation)
+  ) {
+    return null;
+  }
+  try {
+    const sample = await captureProgress(
+      projectRoot,
+      parsed.target,
+      parsed.normalized,
+      parsed.operation as 'PLAN' | 'IMPLEMENT' | 'REVIEW' | 'FIX',
+    );
+    const observed = observeProgressResume(execution.current.context.progress, sample, {
+      suppressStop: parsed.operation === 'REVIEW' || parsed.operation === 'FIX',
+    });
+    execution.current.context = {
+      ...execution.current.context,
+      progress: observed.telemetry,
+    };
+    return observed.blocker;
+  } catch {
+    return null;
+  }
 }
 
 async function gitHead(projectRoot: string): Promise<string | null> {
