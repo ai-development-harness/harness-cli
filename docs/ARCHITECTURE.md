@@ -332,6 +332,8 @@ Harness Core может вернуть semantic handoff внешнему caller,
 
 Canonical state mutations, transition commits, deterministic writers и Git safety остаются Core-owned.
 
+Stage 5 public transport — `harness protocol machine`: один bounded JSON request из stdin и один Host API JSON response в stdout. Transport всегда разрешает exact project-pinned immutable release через `loadPinnedCore()`; semantic completion принимает только minimal execution identity + untrusted proposal и повторно сверяет active Git-private execution до commit.
+
 ### 4.9 Integration API Boundary
 
 Внешние инструменты должны получать project/artifact/protocol facts через общий Core API, а не повторно интерпретировать repository.
@@ -757,8 +759,8 @@ src/core/update/*
 - наличии обязательного GUI;
 - конкретном transport Local Integration API;
 - конкретной технологии standalone packaging;
-- transport/UX конкретного внешнего caller поверх machine-readable Harness boundary;
-- финальном полном CLI syntax Protocol Engine;
+- transport Local Integration API Stage 7 для editor/UI clients;
+- финальном полном CLI syntax Protocol Engine сверх Stage 5 machine transport;
 - точном physical package split внутри repository.
 
 Эти решения должны приниматься отдельными requirements/ADR/design tasks при появлении достаточного контекста.
