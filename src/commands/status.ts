@@ -7,6 +7,7 @@ import { ReleaseStore } from '../core/releases/store.js';
 import { projectStatus, resolveStepNext, writeProjections } from '../core/project/index.js';
 import { createPlanningProjectProviders } from '../core/planning/index.js';
 import { unresolvedExecutionFacts } from '../core/execution/index.js';
+import { stepCompletionProof } from '../core/review/index.js';
 
 export interface StatusCommandOptions {
   readonly json?: boolean;
@@ -31,7 +32,9 @@ export async function statusCommand(
     let changedProjections: readonly string[] = [];
     let status: Readonly<Record<string, unknown>>;
     try {
-      const planningProviders = createPlanningProjectProviders(root);
+      const planningProviders = createPlanningProjectProviders(root, {
+        completion: (stepId) => stepCompletionProof(root, stepId),
+      });
       const readModelProviders = {
         ...planningProviders,
         unresolvedExecutions: () => unresolvedExecutionFacts(root),
