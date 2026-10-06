@@ -18,6 +18,7 @@ import {
 import { createTimestampedReport, renderDocument } from './document-write.js';
 import { verificationFreshness } from './verification.js';
 import type {
+  ReviewExpectationV1,
   ReviewFinding,
   ReviewVerdict,
 } from './types.js';
@@ -154,8 +155,8 @@ async function reviewDirectory(projectRoot: string, stepId: string): Promise<str
 }
 
 function sameExpectation(
-  stored: Readonly<Record<string, unknown>>,
-  current: Readonly<Record<string, unknown>>,
+  stored: ReviewExpectationV1,
+  current: ReviewExpectationV1,
 ): boolean {
   return JSON.stringify({
     stepId: stored.stepId,
