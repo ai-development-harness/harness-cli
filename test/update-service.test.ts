@@ -274,6 +274,65 @@ describe('thin Harness UpdateService', () => {
     });
   });
 
+  it('resumes from migration_verified without re-running migration', async () => {
+    const root = await tempRoot();
+    const store = new ReleaseStore(path.join(root, 'store'));
+    await store.installFromDirectory(await releaseFixture(root, '1.0.0'));
+    const target = await store.installFromDirectory(
+      await releaseFixture(root, '2.0.0', {
+        supported: [2],
+        migrateFrom: [1],
+        targetSchema: 2,
+      }),
+    );
+    const projectRoot = await project(root);
+    const state = new MemoryProjectState({ release: '1.0.0', schemaVersion: 2 });
+    const { writeUpdateCheckpoint } = await import('../src/core/update/state.js');
+    await writeUpdateCheckpoint(projectRoot, {
+      operationId: 'update:1.0.0->2.0.0',
+      phase: 'prepared',
+      currentRelease: '1.0.0',
+      targetRelease: '2.0.0',
+      targetDigest: target.digest,
+      projectSchemaBefore: 1,
+      projectSchemaAfter: 1,
+      migrationRequired: true,
+    });
+    await writeUpdateCheckpoint(projectRoot, {
+      operationId: 'update:1.0.0->2.0.0',
+      phase: 'migration_verified',
+      currentRelease: '1.0.0',
+      targetRelease: '2.0.0',
+      targetDigest: target.digest,
+      projectSchemaBefore: 1,
+      projectSchemaAfter: 2,
+      migrationRequired: true,
+    });
+
+    let migrationCalls = 0;
+    const service = new UpdateService({
+      projectRoot,
+      releaseStore: store,
+      projectState: state,
+      migration: {
+        async migrate() {
+          migrationCalls += 1;
+          return { projectSchemaVersion: 2 };
+        },
+      },
+      cliVersion: '0.1.0',
+      hostApiVersion: 1,
+    });
+
+    await expect(service.apply('2.0.0')).resolves.toMatchObject({
+      status: 'SUCCESS',
+      targetRelease: '2.0.0',
+      migrated: true,
+    });
+    expect(migrationCalls).toBe(0);
+    expect(state.state).toEqual({ release: '2.0.0', schemaVersion: 2 });
+  });
+
   it('leaves the release pin unchanged when required migration fails', async () => {
     const root = await tempRoot();
     const store = new ReleaseStore(path.join(root, 'store'));
