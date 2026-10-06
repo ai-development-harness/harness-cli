@@ -197,8 +197,18 @@ export class UpdateService {
 
   async apply(requestedTarget?: string): Promise<UpdateApplyResult> {
     const initialState = await this.projectState.read(this.projectRoot);
-    const chosenTarget = requestedTarget ?? await this.chooseTarget(initialState.release);
-    if (chosenTarget === null || chosenTarget === initialState.release) {
+    const checkpointBeforeLock = await readUpdateCheckpoint(this.projectRoot);
+
+    const recoverable =
+      checkpointBeforeLock !== null &&
+      checkpointBeforeLock.phase !== 'verified' &&
+      (requestedTarget === undefined || requestedTarget === checkpointBeforeLock.targetRelease);
+
+    const chosenTarget = recoverable
+      ? checkpointBeforeLock.targetRelease
+      : requestedTarget ?? await this.chooseTarget(initialState.release);
+
+    if (chosenTarget === null) {
       const current = await this.releaseStore.verify(initialState.release);
       return {
         status: 'NOOP',
@@ -210,12 +220,18 @@ export class UpdateService {
       };
     }
 
-    const operationId = `update:${initialState.release}->${chosenTarget}`;
+    const operationId = recoverable
+      ? checkpointBeforeLock.operationId
+      : `update:${initialState.release}->${chosenTarget}`;
+
     const lease = await acquireCoreWriteLock(
       this.projectRoot,
       'harness-update',
       operationId,
-      { currentRelease: initialState.release, targetRelease: chosenTarget },
+      {
+        currentRelease: recoverable ? checkpointBeforeLock.currentRelease : initialState.release,
+        targetRelease: chosenTarget,
+      },
     );
 
     try {
@@ -268,24 +284,23 @@ export class UpdateService {
           targetRelease: existing.targetRelease,
           targetDigest: existing.targetDigest,
           migrated: existing.migrationRequired,
-          recovered: true,
+          recovered: existing.phase !== 'verified',
+        };
+      }
+
+      if (!recoverable && chosenTarget === initialState.release) {
+        const current = await this.releaseStore.verify(initialState.release);
+        return {
+          status: 'NOOP',
+          currentRelease: initialState.release,
+          targetRelease: initialState.release,
+          targetDigest: current.digest,
+          migrated: false,
+          recovered: false,
         };
       }
 
       const plan = await this.check(chosenTarget);
-      if (plan.status === 'noop') {
-        if (!plan.targetDigest) {
-          const verified = await this.releaseStore.verify(plan.targetRelease);
-          return {
-            status: 'NOOP',
-            currentRelease: plan.currentRelease,
-            targetRelease: plan.targetRelease,
-            targetDigest: verified.digest,
-            migrated: false,
-            recovered: false,
-          };
-        }
-      }
       if (plan.status !== 'ready' || !plan.targetDigest || plan.targetProjectSchemaVersion === null) {
         throw new UpdateError(
           'UPDATE_BLOCKED',
@@ -294,19 +309,32 @@ export class UpdateService {
         );
       }
 
-      await writeUpdateCheckpoint(this.projectRoot, {
-        operationId,
-        phase: 'prepared',
-        currentRelease: plan.currentRelease,
-        targetRelease: plan.targetRelease,
-        targetDigest: plan.targetDigest,
-        projectSchemaBefore: plan.projectSchemaVersion,
-        projectSchemaAfter: plan.projectSchemaVersion,
-        migrationRequired: plan.migrationRequired,
-      });
+      const previousPrepared =
+        existing &&
+        existing.operationId === operationId &&
+        (existing.phase === 'prepared' || existing.phase === 'migration_verified')
+          ? existing
+          : null;
 
-      let schemaAfter = plan.projectSchemaVersion;
-      if (plan.migrationRequired) {
+      if (!previousPrepared) {
+        await writeUpdateCheckpoint(this.projectRoot, {
+          operationId,
+          phase: 'prepared',
+          currentRelease: plan.currentRelease,
+          targetRelease: plan.targetRelease,
+          targetDigest: plan.targetDigest,
+          projectSchemaBefore: plan.projectSchemaVersion,
+          projectSchemaAfter: plan.projectSchemaVersion,
+          migrationRequired: plan.migrationRequired,
+        });
+      }
+
+      let schemaAfter =
+        previousPrepared?.phase === 'migration_verified'
+          ? previousPrepared.projectSchemaAfter
+          : plan.projectSchemaVersion;
+
+      if (plan.migrationRequired && previousPrepared?.phase !== 'migration_verified') {
         if (!this.migration) {
           throw new UpdateError(
             'UPDATE_MIGRATION_FAILED',
@@ -350,16 +378,18 @@ export class UpdateService {
         }
       }
 
-      await writeUpdateCheckpoint(this.projectRoot, {
-        operationId,
-        phase: 'migration_verified',
-        currentRelease: plan.currentRelease,
-        targetRelease: plan.targetRelease,
-        targetDigest: plan.targetDigest,
-        projectSchemaBefore: plan.projectSchemaVersion,
-        projectSchemaAfter: schemaAfter,
-        migrationRequired: plan.migrationRequired,
-      });
+      if (previousPrepared?.phase !== 'migration_verified') {
+        await writeUpdateCheckpoint(this.projectRoot, {
+          operationId,
+          phase: 'migration_verified',
+          currentRelease: plan.currentRelease,
+          targetRelease: plan.targetRelease,
+          targetDigest: plan.targetDigest,
+          projectSchemaBefore: plan.projectSchemaVersion,
+          projectSchemaAfter: schemaAfter,
+          migrationRequired: plan.migrationRequired,
+        });
+      }
 
       const beforePin = await this.projectState.read(this.projectRoot);
       if (
@@ -390,12 +420,12 @@ export class UpdateService {
         migrationRequired: plan.migrationRequired,
       });
 
-      const after = await this.projectState.read(this.projectRoot);
-      if (after.release !== plan.targetRelease || after.schemaVersion !== schemaAfter) {
+      const afterState = await this.projectState.read(this.projectRoot);
+      if (afterState.release !== plan.targetRelease || afterState.schemaVersion !== schemaAfter) {
         throw new UpdateError(
           'UPDATE_POSTCONDITION_FAILED',
           'Harness release pin mutation did not reach the planned project state.',
-          { expectedRelease: plan.targetRelease, expectedSchemaVersion: schemaAfter, actual: after },
+          { expectedRelease: plan.targetRelease, expectedSchemaVersion: schemaAfter, actual: afterState },
         );
       }
 
