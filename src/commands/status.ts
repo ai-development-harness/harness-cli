@@ -5,6 +5,7 @@ import { isReleaseError } from '../core/releases/errors.js';
 import { resolvePinnedRelease } from '../core/releases/resolver.js';
 import { ReleaseStore } from '../core/releases/store.js';
 import { projectStatus, resolveStepNext, writeProjections } from '../core/project/index.js';
+import { createPlanningProjectProviders } from '../core/planning/index.js';
 
 export interface StatusCommandOptions {
   readonly json?: boolean;
@@ -29,12 +30,13 @@ export async function statusCommand(
     let changedProjections: readonly string[] = [];
     let status: Readonly<Record<string, unknown>>;
     try {
-      changedProjections = await writeProjections(root);
-      const facts = await projectStatus(root);
+      const planningProviders = createPlanningProjectProviders(root);
+      changedProjections = await writeProjections(root, planningProviders);
+      const facts = await projectStatus(root, planningProviders);
       status = {
         ...facts,
         changedProjections,
-        nextWork: await resolveStepNext(root),
+        nextWork: await resolveStepNext(root, planningProviders),
       };
     } catch (error) {
       status = {
