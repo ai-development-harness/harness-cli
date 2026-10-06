@@ -3,6 +3,7 @@ import { link, mkdir, open, readFile, rm, stat, unlink, utimes } from 'node:fs/p
 import { hostname as systemHostname } from 'node:os';
 import path from 'node:path';
 import { resolveHarnessStatePath } from '../git.js';
+import { acquireCoreWriteLock, CoreWriteLockError } from '../write-lock.js';
 import { MigrationExecutionError } from './executor-types.js';
 
 const LOCK_FILE = 'migration-execution.lock.json';
@@ -424,7 +425,7 @@ async function takeOverStaleLock(
   }
 }
 
-export async function acquireMigrationExecutionLock(
+async function acquireMigrationExecutionLockInternal(
   projectRoot: string,
   migrationId: string,
   mode: MigrationExecutionLockMode,
@@ -498,4 +499,69 @@ export async function acquireMigrationExecutionLock(
       released = true;
     },
   };
+}
+
+
+export async function acquireMigrationExecutionLock(
+  projectRoot: string,
+  migrationId: string,
+  mode: MigrationExecutionLockMode,
+  dependencies: MigrationExecutionLockDependencies = {},
+): Promise<MigrationExecutionLockLease> {
+  let coreLease;
+  try {
+    coreLease = await acquireCoreWriteLock(
+      projectRoot,
+      'migration',
+      migrationId,
+      { migrationId, mode },
+      dependencies,
+    );
+  } catch (error) {
+    if (error instanceof CoreWriteLockError && error.code === 'CORE_WRITE_LOCK_ACTIVE') {
+      const owner = (error.details.owner ?? {}) as Record<string, unknown>;
+      const metadata =
+        typeof owner.metadata === 'object' && owner.metadata !== null
+          ? (owner.metadata as Record<string, unknown>)
+          : {};
+      throw new MigrationExecutionError(
+        'MIGRATION_LOCK_ACTIVE',
+        'Another Core write execution is active.',
+        {
+          coreWriteOwner: owner,
+          owner: {
+            migrationId: metadata.migrationId ?? owner.operationId,
+            mode: metadata.mode ?? 'apply',
+          },
+        },
+      );
+    }
+    throw error;
+  }
+
+  try {
+    const migrationLease = await acquireMigrationExecutionLockInternal(
+      projectRoot,
+      migrationId,
+      mode,
+      dependencies,
+    );
+    let released = false;
+    return {
+      path: migrationLease.path,
+      owner: migrationLease.owner,
+      async release(): Promise<void> {
+        if (released) return;
+        try {
+          await migrationLease.release();
+        } finally {
+          await coreLease.release();
+          released = true;
+        }
+      },
+    };
+  } catch (error) {
+    await coreLease.release();
+    throw error;
+  }
 }
