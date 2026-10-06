@@ -1,3 +1,5 @@
+import type { ProgressTelemetry, ReviewExpectationV1 } from '../review/types.js';
+
 export const EXECUTION_STATE_SCHEMA_VERSION = 2 as const;
 export const INTENT_BASIS_SCHEMA_VERSION = 1 as const;
 export const RECENT_TERMINAL_LIMIT = 100;
@@ -37,9 +39,12 @@ export interface ExecutionCommandContext {
     message: string;
   }>;
   readonly implementationBaseline?: StepRecoveryBaseline;
-  readonly progress?: Readonly<{
-    samples: readonly unknown[];
+  readonly reviewExpectation?: ReviewExpectationV1;
+  readonly reviewExpectationError?: Readonly<{
+    reasonCode: 'REVIEW_EXPECTATION_UNAVAILABLE';
+    message: string;
   }>;
+  readonly progress?: ProgressTelemetry;
 }
 
 export interface ExecutionCurrent {
