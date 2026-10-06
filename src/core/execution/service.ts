@@ -192,7 +192,13 @@ async function withMutation<T>(
   operationId: string,
   callback: (state: ExecutionState) => Promise<T>,
 ): Promise<T> {
-  const lease = await acquireCoreWriteLock(projectRoot, 'execution-state', operationId);
+  const lease = await acquireCoreWriteLock(
+    projectRoot,
+    'execution-state',
+    operationId,
+    undefined,
+    { contention: 'wait-same-kind' },
+  );
   try {
     const state = await loadExecutionState(projectRoot);
     const result = await callback(state);
