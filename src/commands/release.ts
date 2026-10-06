@@ -67,13 +67,12 @@ export async function releaseListCommand(json = false): Promise<void> {
 export async function releaseVerifyCommand(release: string, json = false): Promise<void> {
   try {
     const result = await new ReleaseStore().verify(release);
-    const output = {
-      ok: true,
+    const output = jsonSuccess({
       release: result.release,
       digest: result.digest,
       root: result.root,
       installedAt: result.installedAt,
-    };
+    });
 
     if (json) {
       writeJson(output);
