@@ -160,8 +160,6 @@ Core повторно вычисляет current canonical fingerprints и ср�
 
 Mutating resume сначала durable commit-ит stale blocker в execution state и только затем возвращает structured error caller-у. Поэтому restart после самого blocker не превращает stale invocation обратно в running.
 
-Core повторно вычисляет current canonical fingerprints и сравнивает их со stored snapshot.
-
 Blockers:
 
 - `INTENT_BASIS_STALE`;
