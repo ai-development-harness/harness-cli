@@ -417,7 +417,10 @@ function nextChain(
   };
 }
 
-function nextOrchestration(execution: ExecutionRecord): ExecutionResolution {
+async function nextOrchestration(
+  projectRoot: string,
+  execution: ExecutionRecord,
+): Promise<ExecutionResolution> {
   const current = parseCanonicalCommand(execution.current.command);
   const target = current.valid ? current.target : null;
   const operation = current.valid ? current.operation : null;
@@ -439,6 +442,19 @@ function nextOrchestration(execution: ExecutionRecord): ExecutionResolution {
     return { ...base, status: 'DONE', command: null, reasonCode: 'EXECUTION_COMPLETE' };
   }
   if (operation === 'REVIEW' && result === 'FAIL') {
+    const adaptive = await repairCycleDecision(
+      projectRoot,
+      target,
+      Math.max(1, execution.fixReviewCycles),
+    );
+    if (adaptive?.reasonCode) {
+      return {
+        ...base,
+        status: 'BLOCKED',
+        command: null,
+        reasonCode: String(adaptive.reasonCode),
+      };
+    }
     if (execution.fixReviewCycles >= execution.maxFixReviewCycles) {
       return { ...base, status: 'BLOCKED', command: null, reasonCode: 'FIX_REVIEW_LIMIT_REACHED' };
     }
@@ -484,7 +500,7 @@ async function resolveExecutionInternal(
     execution.mode === 'chain'
       ? nextChain(execution)
       : execution.mode === 'orchestration'
-        ? nextOrchestration(execution)
+        ? await nextOrchestration(projectRoot, execution)
         : {
             status: 'DONE' as const,
             executionId: execution.executionId,
