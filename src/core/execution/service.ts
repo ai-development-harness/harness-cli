@@ -405,66 +405,77 @@ export async function startExecution(
   rawCommand: string,
 ): Promise<ExecutionRecord> {
   const normalized = normalizedRoot(rawCommand);
-  return withMutation(projectRoot, `start:${randomUUID()}`, async (state) => {
-    const latest = latestInvocation(state, normalized.rootCommand);
-    if (latest?.kind === 'active' && latest.value.status === 'running') {
-      const execution = latest.value;
-      if (execution.current.status === 'running') {
-        const blocker = await intentResumeBlocker(projectRoot, execution);
-        if (blocker) {
-          execution.current.status = 'blocked';
-          execution.current.result = 'BLOCKED';
-          execution.current.completedAt = nowIso();
-          finishRoot(state, execution, true, blocker);
-          throwIntentBlocker(blocker);
+  const outcome = await withMutation(
+    projectRoot,
+    `start:${randomUUID()}`,
+    async (state): Promise<{ execution: ExecutionRecord; blocker?: Readonly<Record<string, unknown>> }> => {
+      const latest = latestInvocation(state, normalized.rootCommand);
+      if (latest?.kind === 'active' && latest.value.status === 'running') {
+        const execution = latest.value;
+        if (execution.current.status === 'running') {
+          const blocker = await intentResumeBlocker(projectRoot, execution);
+          if (blocker) {
+            execution.current.status = 'blocked';
+            execution.current.result = 'BLOCKED';
+            execution.current.completedAt = nowIso();
+            finishRoot(state, execution, true, blocker);
+            return { execution, blocker };
+          }
+          execution.current.attempt += 1;
+          execution.current.startedAt = nowIso();
+          execution.updatedAt = nowIso();
         }
-        execution.current.attempt += 1;
-        execution.current.startedAt = nowIso();
-        execution.updatedAt = nowIso();
+        return { execution };
       }
-      return execution;
-    }
 
-    if (latest?.kind === 'active' && latest.value.status === 'blocked') {
-      compactExecution(state, latest.value);
-    }
+      // A newer invocation of the same root makes any older blocked full record
+      // historical. Compact it before allocating the next ordinal so full state
+      // remains bounded while the latest actionable blocker stays recoverable.
+      for (const blocked of [...state.executions]) {
+        if (blocked.rootCommand === normalized.rootCommand && blocked.status === 'blocked') {
+          compactExecution(state, blocked);
+        }
+      }
 
-    const config = await readConfig(projectRoot);
-    const ordinal = state.nextOrdinal;
-    state.nextOrdinal += 1;
-    const firstCommand =
-      normalized.mode === 'orchestration' ? normalized.rootCommand : normalized.sequence[0];
-    const executionId = `exec-${randomUUID().replaceAll('-', '')}`;
-    const context = await commandContext(projectRoot, firstCommand);
-    const timestamp = nowIso();
-    const execution: ExecutionRecord = {
-      executionId,
-      ordinal,
-      mode: normalized.mode,
-      requestedCommand: rawCommand.trim(),
-      rootCommand: normalized.rootCommand,
-      sequence: normalized.sequence,
-      currentIndex: normalized.mode === 'orchestration' ? null : 0,
-      status: 'running',
-      current: {
-        command: firstCommand,
+      const config = await readConfig(projectRoot);
+      const ordinal = state.nextOrdinal;
+      state.nextOrdinal += 1;
+      const firstCommand =
+        normalized.mode === 'orchestration' ? normalized.rootCommand : normalized.sequence[0];
+      const executionId = `exec-${randomUUID().replaceAll('-', '')}`;
+      const context = await commandContext(projectRoot, firstCommand);
+      const timestamp = nowIso();
+      const execution: ExecutionRecord = {
+        executionId,
+        ordinal,
+        mode: normalized.mode,
+        requestedCommand: rawCommand.trim(),
+        rootCommand: normalized.rootCommand,
+        sequence: normalized.sequence,
+        currentIndex: normalized.mode === 'orchestration' ? null : 0,
         status: 'running',
-        result: null,
-        attempt: 1,
+        current: {
+          command: firstCommand,
+          status: 'running',
+          result: null,
+          attempt: 1,
+          startedAt: timestamp,
+          completedAt: null,
+          context,
+        },
+        notExecuted: [],
+        fixReviewCycles: 0,
+        maxFixReviewCycles: config.execution.maxFixReviewCycles,
         startedAt: timestamp,
         completedAt: null,
-        context,
-      },
-      notExecuted: [],
-      fixReviewCycles: 0,
-      maxFixReviewCycles: config.execution.maxFixReviewCycles,
-      startedAt: timestamp,
-      completedAt: null,
-      updatedAt: timestamp,
-    };
-    state.executions.push(execution);
-    return execution;
-  });
+        updatedAt: timestamp,
+      };
+      state.executions.push(execution);
+      return { execution };
+    },
+  );
+  if (outcome.blocker) throwIntentBlocker(outcome.blocker);
+  return outcome.execution;
 }
 
 export async function beginCommand(
@@ -478,44 +489,50 @@ export async function beginCommand(
     throw new ExecutionStateError('EXECUTION_INVALID_TRANSITION', parsed.message, { parsed });
   }
 
-  return withMutation(projectRoot, `begin:${randomUUID()}`, async (state) => {
-    const execution = latestActive(state, normalized.rootCommand);
-    if (!execution || execution.status !== 'running') {
-      throw new ExecutionStateError('EXECUTION_NOT_FOUND', `active execution not found for ${normalized.rootCommand}`);
-    }
-
-    if (execution.current.status === 'running' && execution.current.command === parsed.normalized) {
-      const blocker = await intentResumeBlocker(projectRoot, execution);
-      if (blocker) {
-        execution.current.status = 'blocked';
-        execution.current.result = 'BLOCKED';
-        execution.current.completedAt = nowIso();
-        finishRoot(state, execution, true, blocker);
-        throwIntentBlocker(blocker);
+  const outcome = await withMutation(
+    projectRoot,
+    `begin:${randomUUID()}`,
+    async (state): Promise<{ execution: ExecutionRecord; blocker?: Readonly<Record<string, unknown>> }> => {
+      const execution = latestActive(state, normalized.rootCommand);
+      if (!execution || execution.status !== 'running') {
+        throw new ExecutionStateError('EXECUTION_NOT_FOUND', `active execution not found for ${normalized.rootCommand}`);
       }
-      execution.current.attempt += 1;
-      execution.current.startedAt = nowIso();
+
+      if (execution.current.status === 'running' && execution.current.command === parsed.normalized) {
+        const blocker = await intentResumeBlocker(projectRoot, execution);
+        if (blocker) {
+          execution.current.status = 'blocked';
+          execution.current.result = 'BLOCKED';
+          execution.current.completedAt = nowIso();
+          finishRoot(state, execution, true, blocker);
+          return { execution, blocker };
+        }
+        execution.current.attempt += 1;
+        execution.current.startedAt = nowIso();
+        execution.updatedAt = nowIso();
+        return { execution };
+      }
+
+      const resolution = await resolveExecutionInternal(projectRoot, state, execution, false);
+      if (resolution.status !== 'NEXT' || resolution.command !== parsed.normalized) {
+        throw new ExecutionStateError(
+          'EXECUTION_INVALID_TRANSITION',
+          `command ${parsed.normalized} is not the next command for ${normalized.rootCommand}`,
+          { resolution },
+        );
+      }
+
+      const baseline = await implementationBaseline(projectRoot, execution.executionId, parsed.normalized);
+      if (baseline) state.stepRecovery[baseline.stepId] = baseline;
+      const context = await commandContext(projectRoot, parsed.normalized, baseline);
+      execution.current = newCurrent(parsed.normalized, context);
+      if (execution.mode === 'chain') execution.currentIndex = (execution.currentIndex ?? 0) + 1;
       execution.updatedAt = nowIso();
-      return execution;
-    }
-
-    const resolution = await resolveExecutionInternal(projectRoot, state, execution, false);
-    if (resolution.status !== 'NEXT' || resolution.command !== parsed.normalized) {
-      throw new ExecutionStateError(
-        'EXECUTION_INVALID_TRANSITION',
-        `command ${parsed.normalized} is not the next command for ${normalized.rootCommand}`,
-        { resolution },
-      );
-    }
-
-    const baseline = await implementationBaseline(projectRoot, execution.executionId, parsed.normalized);
-    if (baseline) state.stepRecovery[baseline.stepId] = baseline;
-    const context = await commandContext(projectRoot, parsed.normalized, baseline);
-    execution.current = newCurrent(parsed.normalized, context);
-    if (execution.mode === 'chain') execution.currentIndex = (execution.currentIndex ?? 0) + 1;
-    execution.updatedAt = nowIso();
-    return execution;
-  });
+      return { execution };
+    },
+  );
+  if (outcome.blocker) throwIntentBlocker(outcome.blocker);
+  return outcome.execution;
 }
 
 export async function completeCurrent(
