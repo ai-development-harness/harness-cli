@@ -35,6 +35,9 @@ describe('real Harness release builder', () => {
     });
 
     expect(built.manifest.entrypoints.core).toBe('core/release-entrypoint.js');
+    expect(built.manifest.files.some((item) => item.path.startsWith('core/node_modules/zod/'))).toBe(true);
+    expect(built.manifest.files.some((item) => item.path.startsWith('core/node_modules/yaml/'))).toBe(true);
+    expect(built.manifest.files.some((item) => item.path.startsWith('core/node_modules/env-paths/'))).toBe(true);
     expect(built.manifest.components.map((item) => item.id)).toEqual([
       'core', 'protocol', 'schemas', 'skills', 'docs',
     ]);
