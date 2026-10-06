@@ -58,3 +58,14 @@ until that surface is explicitly versioned.
 This presentation contract does not create AI runtime ownership. CLI/Core do not launch,
 select, authenticate, configure, cancel or supervise Codex, Claude Code or any other AI
 runtime. External callers consume deterministic results or semantic handoffs.
+
+
+## Stage 5 parity
+
+The complete public Stage 5 command/structured-output/exit-code matrix is
+maintained in `docs/STAGE5_PARITY.md` and guarded by
+`test/stage5-cli-matrix.test.ts`.
+
+`harness protocol machine` is intentionally machine-only and therefore does
+not expose a redundant `--json` option; it emits the versioned Core Host API
+JSON envelope directly.
