@@ -369,13 +369,23 @@ export class UpdateService {
         }
       }
 
+      const targetDigest = plan.targetDigest;
+      const targetProjectSchemaVersion = plan.targetProjectSchemaVersion;
+      if (targetDigest === null || targetProjectSchemaVersion === null) {
+        throw new UpdateError(
+          'UPDATE_BLOCKED',
+          'Ready update plan is missing exact target identity.',
+          { plan },
+        );
+      }
+
       if (!previousPrepared) {
         await writeUpdateCheckpoint(this.projectRoot, {
           operationId,
           phase: 'prepared',
           currentRelease: plan.currentRelease,
           targetRelease: plan.targetRelease,
-          targetDigest: plan.targetDigest,
+          targetDigest,
           projectSchemaBefore: plan.projectSchemaVersion,
           projectSchemaAfter: plan.projectSchemaVersion,
           migrationRequired: plan.migrationRequired,
@@ -394,7 +404,7 @@ export class UpdateService {
             'Target release requires a project-schema migration, but no migration coordinator is configured.',
             {
               fromProjectSchemaVersion: plan.projectSchemaVersion,
-              toProjectSchemaVersion: plan.targetProjectSchemaVersion,
+              toProjectSchemaVersion: targetProjectSchemaVersion,
               targetRelease: plan.targetRelease,
             },
           );
@@ -406,9 +416,9 @@ export class UpdateService {
             projectRoot: this.projectRoot,
             currentRelease: plan.currentRelease,
             targetRelease: plan.targetRelease,
-            targetReleaseDigest: plan.targetDigest,
+            targetReleaseDigest: targetDigest,
             fromProjectSchemaVersion: plan.projectSchemaVersion,
-            toProjectSchemaVersion: plan.targetProjectSchemaVersion,
+            toProjectSchemaVersion: targetProjectSchemaVersion,
           });
         } catch (error) {
           throw new UpdateError(
@@ -419,12 +429,12 @@ export class UpdateService {
         }
 
         schemaAfter = migrationResult.projectSchemaVersion;
-        if (schemaAfter !== plan.targetProjectSchemaVersion) {
+        if (schemaAfter !== targetProjectSchemaVersion) {
           throw new UpdateError(
             'UPDATE_MIGRATION_FAILED',
             'Migration coordinator did not reach the target project schema.',
             {
-              expectedProjectSchemaVersion: plan.targetProjectSchemaVersion,
+              expectedProjectSchemaVersion: targetProjectSchemaVersion,
               actualProjectSchemaVersion: schemaAfter,
             },
           );
@@ -437,7 +447,7 @@ export class UpdateService {
           phase: 'migration_verified',
           currentRelease: plan.currentRelease,
           targetRelease: plan.targetRelease,
-          targetDigest: plan.targetDigest,
+          targetDigest,
           projectSchemaBefore: plan.projectSchemaVersion,
           projectSchemaAfter: schemaAfter,
           migrationRequired: plan.migrationRequired,
@@ -467,7 +477,7 @@ export class UpdateService {
         phase: 'pin_written',
         currentRelease: plan.currentRelease,
         targetRelease: plan.targetRelease,
-        targetDigest: plan.targetDigest,
+        targetDigest,
         projectSchemaBefore: plan.projectSchemaVersion,
         projectSchemaAfter: schemaAfter,
         migrationRequired: plan.migrationRequired,
@@ -483,11 +493,11 @@ export class UpdateService {
       }
 
       const verified = await this.releaseStore.verify(plan.targetRelease);
-      if (verified.digest !== plan.targetDigest) {
+      if (verified.digest !== targetDigest) {
         throw new UpdateError(
           'UPDATE_POSTCONDITION_FAILED',
           'Target release identity changed after release pin mutation.',
-          { expectedDigest: plan.targetDigest, actualDigest: verified.digest },
+          { expectedDigest: targetDigest, actualDigest: verified.digest },
         );
       }
 
@@ -496,7 +506,7 @@ export class UpdateService {
         phase: 'verified',
         currentRelease: plan.currentRelease,
         targetRelease: plan.targetRelease,
-        targetDigest: plan.targetDigest,
+        targetDigest,
         projectSchemaBefore: plan.projectSchemaVersion,
         projectSchemaAfter: schemaAfter,
         migrationRequired: plan.migrationRequired,
@@ -506,7 +516,7 @@ export class UpdateService {
         status: 'SUCCESS',
         currentRelease: plan.currentRelease,
         targetRelease: plan.targetRelease,
-        targetDigest: plan.targetDigest,
+        targetDigest,
         migrated: plan.migrationRequired,
         recovered: false,
       };
