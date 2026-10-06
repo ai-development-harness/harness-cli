@@ -40,7 +40,11 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 - `harness doctor` — проверить окружение и ожидаемую структуру проекта;
 - `harness config` — read-only показать effective `harness.yaml` после применения schema defaults;
 - `harness validate` — проверить `harness.yaml`;
-- `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree;
+- `harness status` — compatibility aggregate: release diagnostics + legacy projection refresh + project summary;
+- `harness project status` — строго read-only показать deterministic project status без пересборки проекций;
+- `harness step list` — read-only список канонических STEP и их lifecycle/planning facts;
+- `harness step show STEP-NNN` — read-only подробное состояние STEP; также принимает canonical numeric form `NNN`;
+- `harness step next` — read-only рекомендация следующей канонической STEP-команды;
 - `harness update check [--target-release X.Y.Z]` — read-only построить deterministic update plan поверх установленных releases;
 - `harness update apply [--target-release X.Y.Z]` — применить update release pin через Core UpdateService с его locking/checkpoint/recovery semantics;
 - `harness release install <directory>` — установить локальный проверенный release tree;
@@ -60,7 +64,7 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 - список установленных releases;
 - Release Resolver для project pin с проверкой CLI/Host API/project schema compatibility.
 
-`doctor` и `status` используют общий Release Resolver и не выполняют silent fallback на другую версию.
+`doctor` и compatibility-команда `status` используют общий Release Resolver и не выполняют silent fallback на другую версию. Новые `project status` и `step list/show/next` являются чистыми Core read surfaces: они не вызывают `writeProjections()` и не требуют installed release только для чтения project-owned канонических артефактов.
 
 CLI **не запускает Claude Code или Codex**.
 
@@ -111,6 +115,10 @@ npm run dev -- doctor
 npm run dev -- config --json
 npm run dev -- validate
 npm run dev -- status
+npm run dev -- project status --json
+npm run dev -- step list --json
+npm run dev -- step show 001 --json
+npm run dev -- step next --json
 npm run dev -- update check --json
 npm run dev -- update apply --target-release 0.11.0 --json
 npm run dev -- migrate inspect
