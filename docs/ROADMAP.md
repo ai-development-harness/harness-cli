@@ -1,491 +1,320 @@
 # Harness CLI — план работ
 
-Этот документ — канонический план развития `harness-cli`.
+Этот документ — канонический roadmap `harness-cli`.
 
-Он фиксирует целевую архитектуру и последовательность перехода AI Development Harness от управляющего слоя, встроенного в каждый пользовательский репозиторий, к отдельному устанавливаемому CLI/Core.
+Главная цель проекта: **вынести общую реализацию AI Development Harness из пользовательских репозиториев в отдельно устанавливаемый, версионируемый продукт**, оставив в project repository только минимальный tracked contract и project-owned knowledge.
 
 ## 1. Целевая модель
 
 ```text
-Глобальная установка
-    → исполняемый файл Harness + неизменяемые релизы
+Установленный Harness
+├── harness CLI
+└── immutable releases/
+    └── <version>/
+        ├── core/
+        ├── protocol/
+        ├── schemas/
+        ├── skills/
+        └── docs/
 
-.git/ai-harness/
-    → операционное состояние конкретного clone/worktree
+project repository/
+├── harness.yaml
+├── AGENTS.md / CLAUDE.md     # только thin bootstrap
+├── project-owned REQ/ADR/STEP/OQ/reviews/evidence
+├── project-specific skills
+└── product code/tests
 
-repository/harness.yaml
-    → небольшой отслеживаемый контракт проекта
-
-repository/docs + planning
-    → долговременные проектные знания
-
-AGENTS.md / CLAUDE.md
-    → тонкие bootstrap-адаптеры
+git rev-parse --git-path ai-harness
+└── clone/worktree-local operational state
 ```
 
-Общая реализация Harness не должна копироваться в каждый пользовательский репозиторий.
+Project repository **не должен содержать собственную копию Harness implementation**.
 
-К Harness относятся:
+## 2. Граница ответственности CLI
 
-- реализация протокола;
-- парсер команд / CTS;
-- машина состояний выполнения;
-- валидаторы;
-- детерминированные инструменты;
-- миграции;
-- базовые skills;
-- resolver релизов;
-- сервисы, независимые от runtime;
-- runtime-адаптеры;
-- документация протокола.
+`harness-cli` — deterministic control plane и менеджер установленного Harness.
 
-В репозитории конкретного проекта остаются:
+Он отвечает за:
 
-- исходный код;
-- тесты;
-- требования;
-- ADR;
-- архитектура;
-- STEP;
-- reviews / audits / evidence;
-- проектные skills;
-- `harness.yaml`;
-- минимальные bootstrap-инструкции для runtime.
+- setup/bootstrap project contract;
+- doctor/status/config/validate;
+- Release Store, install/list/verify/resolution;
+- update и migration;
+- canonical protocol parsing/validation/CTS;
+- execution state и deterministic continuation;
+- artifact/project validation и read models;
+- verification/review/completion gates;
+- Git safety/preflight и deterministic side-effect policy;
+- machine-readable handoff/result boundaries для внешних callers.
 
-## 2. Архитектурные инварианты
+### 2.1 CLI никогда не запускает AI runtime
 
-### 2.1 Детерминированность прежде всего
+`harness-cli` **не запускает, не выбирает и не supervises** Codex, Claude Code или другой AI runtime.
 
-Модель решает смысловые задачи. Всё вычислимое, проверяемое и механическое выполняется детерминированным кодом.
+AI runtime запускается пользователем или внешним продуктом независимо и при необходимости **сам вызывает Harness**.
 
-К таким операциям относятся:
+Правильное направление зависимости:
+
+```text
+Claude / Codex / другой внешний caller
+        │
+        │ canonical command / factual proposal
+        ▼
+Harness CLI / release-owned Core
+        │
+        ├── deterministic validation/state/gates
+        └── semantic handoff / deterministic result
+        │
+        ▼
+внешний caller продолжает работу
+```
+
+В Core допустим semantic handoff, но не model execution и не process lifecycle AI runtime.
+
+## 3. Архитектурные инварианты
+
+### 3.1 Thin project repository
+
+Новый Harness project не требует tracked implementation paths вроде:
+
+```text
+.harness/tools/**
+.harness/docs/**
+```
+
+Общая реализация принадлежит immutable Harness release.
+
+### 3.2 Project pin закрепляет executable semantics
+
+`harness.yaml -> harness.release` однозначно разрешается в конкретный verified immutable release.
+
+Никакого silent fallback на `main`, `latest` или соседний installed release.
+
+### 3.3 Детерминированность прежде всего
+
+Вычислимые операции выполняются кодом, а не reasoning модели:
 
 - parsing;
-- валидация схем;
-- переходы состояний;
+- validation;
+- state transitions;
+- release resolution;
+- migration;
 - Git safety;
-- разрешение релизов;
-- миграции;
-- перестроение представлений;
-- блокировки выполнения;
-- формирование машиночитаемого статуса.
+- locking;
+- verification gates;
+- project/read-model calculations.
 
-### 2.2 Core не зависит от конкретного runtime
+### 3.4 Project knowledge остаётся в Git
 
-Codex и Claude Code — runtime-адаптеры, а не источники истины для семантики Harness.
+REQ, ADR, STEP, OQ, reviews, audits, evidence и project-specific skills остаются project-owned tracked artifacts.
 
-Нельзя реализовывать семантику протокола или машины состояний отдельно в каждом runtime-адаптере.
+### 3.5 Operational state не tracked
 
-### 2.3 CLI не является обязательной TUI-обёрткой
-
-Нативные возможности среды выполнения должны сохраняться, включая:
-
-- запросы разрешений;
-- подтверждения;
-- вопросы пользователю;
-- авторизацию инструментов;
-- аутентификацию;
-- интерактивное TTY-поведение.
-
-Интеграция с Harness не должна ломать этот UX.
-
-### 2.4 Долговременное состояние проекта остаётся в Git
-
-Проектные знания и артефакты остаются отслеживаемыми файлами.
-
-Операционное состояние конкретного clone/worktree хранится через:
+Clone/worktree-local execution state хранится через:
 
 ```bash
 git rev-parse --git-path ai-harness
 ```
 
-Концептуально:
+и не становится canonical project knowledge.
 
-```text
-.git/ai-harness/
-```
+### 3.6 Core runtime-neutral
 
-### 2.5 Релизы Harness неизменяемы
+Core не импортирует SDK конкретного AI runtime и не зависит от способа его запуска.
 
-Версия, закреплённая в `harness.yaml`, должна однозначно разрешаться в конкретный установленный неизменяемый релиз Harness.
+## 4. Текущее состояние
 
-Ветка `main` не должна использоваться как runtime-зависимость пользовательского проекта.
-
-## 3. Текущее состояние
-
-### Уже реализовано
-
-- `harness setup`;
-- `harness doctor`;
-- `harness validate`;
-- `harness status`;
-- `harness release install/list/verify`;
-- `harness migrate inspect/plan/apply/resume/status`;
-- immutable Release Store / Resolver;
-- legacy v0.10.4 → thin Migration Engine;
-- schema v1 для `harness.yaml`;
-- кроссплатформенные пути глобального хранилища;
-- путь к clone-local state через Git;
-- базовые bootstrap-файлы `AGENTS.md` / `CLAUDE.md`;
-- CI: typecheck / tests / build;
-- версия CLI берётся из `package.json`.
-
-### Пока не реализовано
-
-- выделенный Harness Core;
-- движок протокола;
-- машина состояний команд в CLI;
-- контракт runtime-адаптера;
-- локальный интеграционный API;
-- самостоятельный дистрибутив.
-
-## 4. Этап 1 — формализация продуктового контракта
+### Stage 1 — Product / Architecture / Migration contracts
 
 **Статус: завершён.**
 
-До дальнейшего расширения реализации нужно закрепить канонический продуктовый и архитектурный контракт.
+Подготовлены:
 
-Создать:
+- `PRODUCT_REQUIREMENTS.md`;
+- `ARCHITECTURE.md`;
+- `MIGRATION.md`;
+- `ROADMAP.md`.
 
-```text
-docs/
-├── PRODUCT_REQUIREMENTS.md
-├── ARCHITECTURE.md
-├── MIGRATION.md
-└── ROADMAP.md
-```
+### Stage 2 — Harness Distribution и immutable Release Store
 
-### PRODUCT_REQUIREMENTS.md
+**Статус: foundation завершён.**
 
-**Состояние:** подготовлен в рамках issue #5.
+Реализованы:
 
-Зафиксировать требования со стабильными идентификаторами:
+- format `release.json`;
+- immutable Release Store;
+- integrity verification;
+- exact project pin resolver;
+- compatibility checks;
+- install/list/verify;
+- кроссплатформенное global storage.
 
-```text
-CLI-REQ-001
-CLI-REQ-002
-...
-```
+Download/catalog transport, signatures/provenance, GC и offline hardening относятся к позднему distribution stage.
 
-Обязательные разделы:
+### Stage 3 — Legacy repository-embedded → thin migration
 
-1. цели продукта и то, что не входит в цели;
-2. обнаружение Harness-проекта;
-3. контракт `harness.yaml`;
-4. дистрибутив Harness;
-5. неизменяемые релизы;
-6. глобальное хранилище;
-7. clone-local state;
-8. `setup`;
-9. `doctor`;
-10. `validate`;
-11. `update`;
-12. миграции;
-13. движок протокола;
-14. состояние выполнения;
-15. контракт runtime-адаптера;
-16. Git safety;
-17. локальный интеграционный API;
-18. кроссплатформенное поведение;
-19. безопасность;
-20. совместимость;
-21. UX CLI;
-22. коды завершения;
-23. машиночитаемый вывод;
-24. тестирование;
-25. стратегия упаковки и распространения.
+**Статус: завершён.**
 
-### ARCHITECTURE.md
+Реализованы:
 
-**Состояние:** подготовлен в рамках issue #6.
+- legacy inspector;
+- deterministic migration planner;
+- checkpointed/resumable executor;
+- v0.10.4 → thin transformation;
+- ownership/conflict checks;
+- filesystem containment;
+- Git-private operational state;
+- concurrent mutation serialization;
+- cross-platform E2E regression suite.
 
-Зафиксировать:
+### Stage 4 — Release-owned Harness Core
 
-- границы модулей;
-- модель владения данными и логикой;
-- границу между Core и слоем представления CLI;
-- модель хранения;
-- resolver релизов;
-- движок миграций;
-- границу runtime-адаптера;
-- направление зависимостей;
-- публичные API-контракты.
+**Статус: завершён в issues #30–#41.**
 
-### MIGRATION.md
+Реализованы:
 
-**Состояние:** подготовлен в рамках issue #7.
+- immutable v0.10.4 extraction baseline;
+- release-owned Core Host API;
+- canonical protocol/CTS model;
+- artifact/document contracts;
+- project state/read models;
+- planning/context contracts;
+- execution state + intent-safe resume;
+- review/completion/convergence gates;
+- Git safety/actions + side-effect recovery;
+- thin Harness UpdateService;
+- deterministic ProtocolEngine;
+- real self-contained Harness release payload;
+- protocol/schemas/skills/docs packaging;
+- runtime dependencies внутри immutable release;
+- installed pinned-Core smoke на Linux/macOS/Windows.
 
-Описать переход существующего проекта Harness от архитектуры со встроенным в репозиторий управляющим слоем к модели тонкого репозитория.
+Stage 4 **не** включает AI runtime adapters или запуск Codex/Claude.
 
-На этом этапе алгоритм миграции может быть описан только на уровне проектирования, без реализации.
+## 5. Stage 5 — завершить deterministic CLI/Core surface
 
-### Критерий завершения этапа
+**Следующий этап.**
 
-Каждый следующий крупный этап реализации должен ссылаться на соответствующие `CLI-REQ-XXX` и архитектурный контракт.
+Цель: предоставить стабильные human-readable и machine-readable команды для всей deterministic функциональности, уже принадлежащей Core.
 
-## 5. Этап 2 — дистрибутив Harness и хранилище неизменяемых релизов
-
-**Статус: базовый Release Store / Resolver завершён в issue #9.**
-
-Формат Harness Distribution и immutable release зафиксирован в `docs/DISTRIBUTION.md` в рамках issue #8.
-
-Issue #9 реализовал transport-neutral Release Store, integrity verification и resolver project pin. Download/catalog transports, signatures/provenance, GC и release hardening остаются более поздними задачами.
-
-Нужно ввести отдельное понятие **дистрибутива Harness**, не связывая архитектуру с единственным каналом установки.
-
-Первым каналом распространения может быть npm/npx.
-
-Концептуальное глобальное хранилище:
-
-```text
-<platform data dir>/ai-development-harness/
-├── releases/
-│   ├── 0.10.4/
-│   │   ├── protocol/
-│   │   ├── tools/
-│   │   ├── skills/
-│   │   ├── adapters/
-│   │   └── docs/
-│   └── ...
-├── config/
-└── cache/
-```
-
-Нужно реализовать:
-
-- формат метаданных релиза;
-- структуру неизменяемого релиза;
-- установку релиза;
-- список установленных релизов;
-- проверку целостности;
-- разрешение версии, закреплённой проектом;
-- ошибки для отсутствующего, повреждённого или несовместимого релиза;
-- политику кэша;
-- кроссплатформенную работу с путями.
-
-Пример:
-
-```text
-project/harness.yaml
-        ↓
-harness.release = 0.10.4
-        ↓
-resolver релизов
-        ↓
-установленный неизменяемый релиз
-```
-
-## 6. Этап 3 — миграция существующих repository-embedded проектов
-
-**Статус: завершён в issues #15–#19; post-stage safety hardening выполнен в #25–#26. Реализованы Inspector, Planner, checkpointed Executor, versioned v0.10.4 → thin transformations, публичный migration CLI, filesystem-aware containment, worktree-scoped mutation serialization и cross-platform E2E regression matrix. Следующий этап — выделение Harness Core.**
-
-Нужно поддержать существующие проекты, в которых Harness Core хранится внутри самого репозитория.
-
-Миграция должна:
-
-1. определить текущую версию Harness и версию схемы;
-2. классифицировать отслеживаемые файлы по владению;
-3. сохранить все проектные артефакты;
-4. обнаружить изменённые shared/Harness-owned файлы;
-5. не удалять пользовательские изменения молча;
-6. создать новый `harness.yaml`;
-7. установить требуемый дистрибутив Harness;
-8. создать или обновить тонкие bootstrap-инструкции;
-9. перенести операционное состояние в clone-local storage;
-10. проверить результат;
-11. сформировать отчёт о миграции.
-
-Миграция должна быть:
-
-- версионированной;
-- по возможности идемпотентной;
-- поддерживать `dry-run`;
-- безопасной при прерывании;
-- явной в отношении разрушающих действий.
-
-## 7. Этап 4 — выделение Harness Core
-
-Baseline перед extraction зафиксирован в [EXTRACTION_BASELINE_V0.10.4.md](./EXTRACTION_BASELINE_V0.10.4.md). Machine-readable golden fixture привязан к template commit `9f4aa325154253ab72a8c5940e988046ae872c99` / Harness `0.10.4`; последующие extraction PR должны ссылаться на стабильные `PARITY-...` case IDs, а intentional thin-architecture deltas — на `THIN-...`.
-
-
-Перенести общую детерминированную логику из template-репозитория в устанавливаемый Core.
-
-Кандидаты на перенос:
-
-- канонический парсер команд;
-- машина состояний переходов;
-- состояние выполнения;
-- семантика dispatcher;
-- валидаторы;
-- обнаружение проекта;
-- расчёт статуса проекта;
-- построители представлений;
-- review gates;
-- Git preflight / safety;
-- движок миграций;
-- разрешение релизов и обновлений;
-- метаданные базовых skills.
-
-Перенос не должен быть механическим копированием один-в-один.
-
-Для каждого модуля нужно определить:
-
-- публичный контракт;
-- входные и выходные данные;
-- границу работы с файловой системой;
-- зависимости от проекта;
-- зависимости от релиза Harness;
-- детерминированные тесты.
-
-После переноса конкретной функции template-репозиторий перестаёт быть источником её runtime-реализации.
-
-## 8. Этап 5 — CLI как полноценный управляющий слой
-
-После появления Core CLI может стать стабильным интерфейсом над движком протокола.
-
-Возможное направление:
-
-```bash
-harness project status
-harness project reconcile
-harness step list
-harness step show STEP-017
-harness step plan STEP-017
-harness step implement STEP-017
-harness step review STEP-017
-harness step run STEP-017
-harness git check
-```
-
-Точный набор команд должен быть определён в `PRODUCT_REQUIREMENTS.md` и при необходимости закреплён ADR до реализации.
-
-Важно разделять два уровня.
-
-### Служебные команды CLI
+Приоритетные поверхности:
 
 ```text
 harness setup
 harness doctor
-harness validate
-harness update
 harness status
+harness config
+harness validate
+
+harness release install/list/verify
+harness migrate inspect/plan/apply/resume/status
+harness update check/apply
+
+harness project status
+harness step list
+harness step show STEP-NNN
+harness step next
+harness git check
 ```
 
-### Протокол разработки Harness
+Также нужен стабильный machine boundary, через который **внешний уже запущенный agent/runtime** может:
 
-```text
-PROJECT ...
-STEP ...
-GIT ...
-SKILL ...
-RELEASE ...
-```
+1. передать canonical command;
+2. получить deterministic result либо semantic handoff;
+3. вернуть factual semantic proposal/result;
+4. продолжить существующее execution после interruption.
 
-Слой представления CLI не должен дублировать логику машины состояний Core.
+Presentation CLI не должен дублировать protocol/state semantics Core.
 
-## 9. Этап 6 — контракт runtime-адаптера
+### Не входит в Stage 5
 
-Нужно определить единый контракт, независимый от конкретной среды выполнения.
+- запуск Claude/Codex;
+- выбор AI runtime;
+- model/effort configuration AI runtime;
+- auth/account management AI runtime;
+- cancellation/process supervision AI runtime;
+- команды, которые создают иллюзию, что CLI сам выполняет semantic coding work.
 
-Концептуально:
+## 6. Stage 6 — Thin-project bootstrap/integration contract
 
-```text
-RuntimeAdapter
-├── capabilities()
-├── identity()
-├── execute(...)
-├── resume(...)
-└── ...
-```
+Цель: формализовать минимальный tracked contract нового project repository после externalization Harness.
 
 Нужно определить:
 
-- обнаружение возможностей;
-- аутентификацию и статус;
-- явный `projectRoot`;
-- идентичность запуска;
-- семантику возобновления;
-- отмену;
-- сопоставление model/effort;
-- границы разрешений;
-- структурированные события;
-- классификацию ошибок.
+- минимальный `harness.yaml`;
+- минимальный runtime-neutral `AGENTS.md`;
+- минимальный optional runtime-specific bootstrap вроде `CLAUDE.md`, если он нужен внешнему runtime;
+- как bootstrap обнаруживает установленный `harness`;
+- как внешний caller получает machine-readable semantic handoff;
+- какие project-owned directories/templates создаёт `setup`;
+- отсутствие dependency на repository-embedded Harness implementation.
 
-Первыми адаптерами могут быть Codex и Claude Code.
+Это **не RuntimeAdapter API** и не process-control слой.
 
-Runtime-адаптер не должен становиться вторым источником истины для семантики протокола.
+Работа по изменению другого repository, например `ai-development-harness-template`, должна планироваться и согласовываться отдельно в том repository.
 
-## 10. Этап 7 — локальный интеграционный API
+## 7. Stage 7 — Local Integration API
 
-Core должен предоставлять машиночитаемый интерфейс для внешних инструментов.
+После стабилизации deterministic Core можно предоставить внешний integration interface для:
 
-Цель — чтобы внешние интеграции не реализовывали самостоятельно:
+- Harness Navigator;
+- UI Harness;
+- IDE/editor integrations;
+- других локальных клиентов.
 
-- parsing артефактов;
-- обнаружение проекта;
-- переходы команд;
-- расчёт статуса;
-- разрешение релизов;
-- правила валидации.
+Минимальные направления:
 
-Минимальные направления API:
+- project inspect/validate;
+- artifact list/show;
+- command availability;
+- execution state;
+- release information;
+- diagnostics.
 
-- инспекция проекта;
-- валидация проекта;
-- список и просмотр артефактов;
-- доступность команд;
-- текущее состояние выполнения;
-- информация о релизе;
-- диагностика.
+Конкретный transport заранее не фиксируется. API не должен становиться AI runtime launcher.
 
-Транспорт нужно выбрать отдельно: библиотечный API, локальный межпроцессный протокол, MCP-подобный интерфейс или другой механизм.
+## 8. Stage 8 — Distribution / release hardening
 
-Не фиксировать транспорт раньше, чем определён контракт Core API.
+После стабилизации Core/CLI:
 
-## 11. Этап 8 — распространение и усиление релизного процесса
+- автоматизация release build/publish;
+- download/catalog transport;
+- signatures/checksums/provenance;
+- compatibility matrix;
+- rollback;
+- release GC;
+- offline installation;
+- исследование standalone binaries Linux/macOS/Windows.
 
-После стабилизации Core:
+npm может быть первым каналом, но не является архитектурно единственным.
 
-- npm-пакет остаётся первым удобным каналом распространения;
-- исследовать самостоятельные бинарные сборки для Linux/macOS/Windows;
-- автоматизировать релизы;
-- добавить контрольные суммы и/или подписи;
-- определить provenance-метаданные;
-- вести матрицу совместимости;
-- поддержать откат установленного релиза;
-- реализовать очистку старых релизов;
-- определить сценарий офлайн-установки.
-
-Архитектура должна оперировать понятием дистрибутива Harness и не считать npm единственным возможным вариантом.
-
-## 12. Сквозные требования
+## 9. Сквозные требования
 
 ### Кроссплатформенность
 
-Поддерживать Linux, macOS и Windows.
+Linux, macOS и Windows.
 
-### Машиночитаемый вывод
+### Machine-readable output
 
-Команды, предназначенные для интеграций, должны иметь стабильный структурированный режим вывода.
+Интеграционные/deterministic команды должны иметь стабильный structured output.
 
-### Коды завершения
+### Exit codes
 
-Коды завершения должны быть документированы и детерминированы.
+Ошибки input, environment, compatibility, blocked state и internal failure должны различаться детерминированно.
 
 ### Безопасность
 
 По умолчанию:
 
-- без разрушающих Git-операций;
-- без тихой перезаписи пользовательских файлов;
-- без выполнения недоверенных hooks/scripts из релиза;
-- без выхода путей за разрешённые границы.
+- никаких destructive Git operations;
+- никаких silent overwrite project-owned files;
+- никаких недоверенных release hooks/bootstrap scripts;
+- никаких path escapes;
+- никаких silent release/runtime fallbacks.
 
-### Тесты
+### Тестирование
 
-Для детерминированной логики обязательны тесты.
-
-Минимальный набор проверок:
+Минимальный gate:
 
 ```bash
 npm run typecheck
@@ -493,37 +322,23 @@ npm test
 npm run build
 ```
 
-## 13. Порядок реализации
+Cross-platform filesystem/Git-heavy behavior проверяется CI matrix.
+
+## 10. Порядок дальнейшей реализации
 
 ```text
-1. PRODUCT_REQUIREMENTS + ARCHITECTURE + MIGRATION
-          ↓
-2. Хранилище неизменяемых релизов / Resolver
-          ↓
-3. Миграция repository-embedded проектов
-          ↓
-4. Выделение Harness Core
-          ↓
-5. CLI как управляющий слой протокола
-          ↓
-6. Контракт runtime-адаптера
-          ↓
-7. Локальный интеграционный API
-          ↓
-8. Усиление распространения и релизного процесса
+Stage 1  Product/architecture contracts        ✅
+Stage 2  Immutable Release Store              ✅ foundation
+Stage 3  Legacy → thin migration              ✅
+Stage 4  Release-owned Core                   ✅
+         ↓
+Stage 5  Deterministic CLI/Core surface       ← NEXT
+         ↓
+Stage 6  Thin-project bootstrap contract
+         ↓
+Stage 7  Local Integration API
+         ↓
+Stage 8  Distribution/release hardening
 ```
 
-Не начинать крупный следующий этап без актуализации этого документа и соответствующих продуктовых требований.
-
-## 14. Что пока не считается принятым решением
-
-Пока это явно не закреплено отдельным контрактом или ADR, не считать принятыми:
-
-- конкретный транспорт локального интеграционного API;
-- финальный синтаксис полного набора CLI-команд протокола;
-- технологию standalone-упаковки;
-- обязательность какого-либо GUI;
-- конкретную схему запуска Codex/Claude из CLI;
-- отказ от bootstrap-файлов `AGENTS.md` / `CLAUDE.md`.
-
-Не превращать эти варианты в архитектурные предпосылки без отдельного решения.
+Не добавлять обратно AI runtime process management в `harness-cli` без нового явного архитектурного решения, изменяющего продуктовую границу.
