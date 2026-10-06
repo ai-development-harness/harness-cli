@@ -3,6 +3,7 @@ import { findGitRoot } from '../core/git.js';
 import {
   isCoreHostError,
   loadPinnedCore,
+  type CoreHostPortRequestV1,
   type CoreHostPortV1,
 } from '../core/host/index.js';
 import { isReleaseError } from '../core/releases/errors.js';
@@ -17,7 +18,7 @@ import {
 const MAX_MACHINE_REQUEST_BYTES = 1024 * 1024;
 
 const inertPort: CoreHostPortV1 = Object.freeze({
-  async call(request) {
+  async call(request: CoreHostPortRequestV1) {
     throw new Error(
       `Host port operation is unavailable for protocol machine transport: ${request.operation}`,
     );
