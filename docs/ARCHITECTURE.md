@@ -163,6 +163,27 @@ Planning freshness, completion proof и unresolved execution являются о
 
 Связанные требования: `CLI-REQ-003`, `CLI-REQ-087`–`CLI-REQ-089`, `CLI-REQ-200`–`CLI-REQ-202`, `CLI-REQ-240`, `CLI-REQ-241`.
 
+### 4.3.3 Planning / Context Module
+
+`src/core/planning/` владеет deterministic planning semantics:
+
+- schema-v4 planning context snapshot и component fingerprints;
+- Ready-plan staleness;
+- role-specific runtime-neutral Context Contracts;
+- explicit context expansion;
+- Project Principle planning surface;
+- execution-group DAG/conflict validation;
+- planning/INIT semantic review linkage;
+- implementation prerequisite facts.
+
+Project State (#34) получает freshness/prerequisite facts через typed provider boundary и не вычисляет planning basis самостоятельно.
+
+Completion proof остаётся authority review layer (#37); до подключения provider dependency gate fail-closes.
+
+Нормативное описание: `docs/PLANNING_CONTEXT.md`.
+
+Связанные требования: `CLI-REQ-003`, `CLI-REQ-004`, `CLI-REQ-140`–`CLI-REQ-148`, `CLI-REQ-200`–`CLI-REQ-202`, `CLI-REQ-251`.
+
 ### 4.4 Storage Module
 
 Отвечает за три независимых класса storage:
