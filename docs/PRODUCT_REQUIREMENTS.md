@@ -68,7 +68,7 @@
 - **CLI-REQ-053 · MUST.** Операционное состояние конкретного clone/worktree должно разрешаться через `git rev-parse --git-path ai-harness`.
 - **CLI-REQ-054 · MUST.** Реализация не должна предполагать, что `.git` всегда является обычной директорией в корне проекта.
 - **CLI-REQ-055 · MUST.** Execution locks, temporary operational state и cache не должны попадать в tracked project files.
-- **CLI-REQ-056 · PLANNED.** Clone-local state должен позволять безопасно возобновлять поддерживаемые executions после прерывания.
+- **CLI-REQ-056 · MUST.** Clone-local state должен позволять безопасно возобновлять поддерживаемые executions после прерывания.
 
 ## 8. Команда setup
 
@@ -124,15 +124,15 @@
 
 ## 12. Protocol Engine и execution state
 
-- **CLI-REQ-140 · PLANNED.** Harness Core должен иметь единый детерминированный parser canonical commands.
-- **CLI-REQ-141 · PLANNED.** Допустимые transitions и chain semantics должны задаваться одной machine-readable state model.
-- **CLI-REQ-142 · PLANNED.** CLI/Core и внешние integrations не должны иметь независимые реализации state machine.
-- **CLI-REQ-143 · PLANNED.** Нормализация targets вроде `17 -> STEP-017` должна быть общей и детерминированной.
-- **CLI-REQ-144 · PLANNED.** Структурно недопустимая команда должна отклоняться до semantic agent work.
-- **CLI-REQ-145 · PLANNED.** Активное Harness execution должно иметь машиночитаемое clone/worktree-scoped состояние.
-- **CLI-REQ-146 · PLANNED.** Core должен предотвращать небезопасные конкурентные write-executions над одним scope.
-- **CLI-REQ-147 · PLANNED.** Поддерживаемые executions должны иметь детерминированный механизм resume.
-- **CLI-REQ-148 · PLANNED.** Критическое execution state не должно зависеть только от chat history AI runtime.
+- **CLI-REQ-140 · MUST.** Harness Core должен иметь единый детерминированный parser canonical commands.
+- **CLI-REQ-141 · MUST.** Допустимые transitions и chain semantics должны задаваться одной machine-readable state model.
+- **CLI-REQ-142 · MUST.** CLI/Core и внешние integrations не должны иметь независимые реализации state machine.
+- **CLI-REQ-143 · MUST.** Нормализация targets вроде `17 -> STEP-017` должна быть общей и детерминированной.
+- **CLI-REQ-144 · MUST.** Структурно недопустимая команда должна отклоняться до semantic agent work.
+- **CLI-REQ-145 · MUST.** Активное Harness execution должно иметь машиночитаемое clone/worktree-scoped состояние.
+- **CLI-REQ-146 · MUST.** Core должен предотвращать небезопасные конкурентные write-executions над одним scope.
+- **CLI-REQ-147 · MUST.** Поддерживаемые executions должны иметь детерминированный механизм resume.
+- **CLI-REQ-148 · MUST.** Критическое execution state не должно зависеть только от chat history AI runtime.
 
 ## 13. External AI runtime boundary
 
