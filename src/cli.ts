@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { configCommand } from './commands/config.js';
+import { gitCheckCommand } from './commands/git-check.js';
 import { doctorCommand } from './commands/doctor.js';
 import {
   releaseInstallCommand,
@@ -71,6 +72,18 @@ program
   .option('--json', 'Write a machine-readable JSON result')
   .action((options: { json?: boolean }) =>
     statusCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+const git = program
+  .command('git')
+  .description('Inspect deterministic Git safety facts and preconditions');
+
+git
+  .command('check')
+  .description('Run a read-only Git safety/preflight diagnostic')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    gitCheckCommand(process.cwd(), { json: options.json ?? false }),
   );
 
 const project = program

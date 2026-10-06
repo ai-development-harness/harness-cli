@@ -172,6 +172,60 @@ describe('Git action Core', () => {
     });
   });
 
+  it('aggregates dirty, diverged and action-specific blockers in a read-only diagnostic report', async () => {
+    const root = await temporaryRepository();
+    const port = new FakeGit();
+    port.snapshotValue = {
+      ...port.snapshotValue,
+      unstaged: ['src/local.ts'],
+    };
+    port.relationValue = {
+      ...port.relationValue,
+      remoteExists: true,
+      remoteHead: 'b'.repeat(40),
+      ahead: 1,
+      behind: 1,
+      upstream: 'origin/feature/example',
+    };
+    const service = new GitActionService({ projectRoot: root, git: port, policy });
+
+    await expect(service.diagnose()).resolves.toMatchObject({
+      schemaVersion: 1,
+      status: 'PASS',
+      branch: 'feature/example',
+      observations: expect.arrayContaining([
+        expect.objectContaining({ code: 'DIRTY_WORKTREE' }),
+        expect.objectContaining({ code: 'DIVERGED' }),
+      ]),
+      preconditions: expect.arrayContaining([
+        expect.objectContaining({ action: 'commit', status: 'BLOCKED', reasonCode: 'NOTHING_TO_COMMIT' }),
+        expect.objectContaining({ action: 'push', status: 'BLOCKED', reasonCode: 'DIVERGED' }),
+        expect.objectContaining({ action: 'pull-request', status: 'BLOCKED', reasonCode: 'REMOTE_HEAD_MISMATCH' }),
+        expect.objectContaining({ action: 'sync', status: 'BLOCKED', reasonCode: 'DIVERGED' }),
+      ]),
+    });
+  });
+
+  it('fails Pull Request preflight with a typed missing-base diagnostic', async () => {
+    const root = await temporaryRepository();
+    const port = new FakeGit();
+    port.relation = async (remote: string, branch: string) => ({
+      remote,
+      branch,
+      remoteExists: true,
+      remoteHead: branch === 'feature/example' ? 'a'.repeat(40) : null,
+      ahead: 0,
+      behind: 0,
+      upstream: branch === 'feature/example' ? 'origin/feature/example' : null,
+    });
+    const service = new GitActionService({ projectRoot: root, git: port, policy });
+
+    await expect(service.preflightPullRequest()).rejects.toMatchObject({
+      code: 'PR_BASE_MISSING',
+      details: { remote: 'origin', base: 'main' },
+    });
+  });
+
   it('builds a resumable PR finish plan only from provider-verified merged state', async () => {
     const root = await temporaryRepository();
     const port = new FakeGit();

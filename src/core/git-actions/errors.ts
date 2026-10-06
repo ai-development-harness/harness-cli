@@ -1,5 +1,8 @@
 export type GitActionErrorCode =
   | 'DETACHED_HEAD'
+  | 'REMOTE_MISSING'
+  | 'PR_BASE_MISSING'
+  | 'READ_ONLY_ADAPTER'
   | 'PROTECTED_BRANCH'
   | 'DIRTY_WORKTREE'
   | 'NOTHING_TO_COMMIT'
