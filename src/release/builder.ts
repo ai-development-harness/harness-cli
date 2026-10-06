@@ -81,9 +81,10 @@ async function writeGeneratedSkills(root: string): Promise<void> {
 
 export async function buildHarnessRelease(options: BuildHarnessReleaseOptions) {
   if (!/^\d+\.\d+\.\d+$/.test(options.release)) throw new Error('release must be X.Y.Z');
-  const createdAt = options.createdAt ?? process.env.SOURCE_DATE_EPOCH
-    ? new Date(Number(process.env.SOURCE_DATE_EPOCH) * 1000).toISOString()
-    : null;
+  const createdAt = options.createdAt ??
+    (process.env.SOURCE_DATE_EPOCH
+      ? new Date(Number(process.env.SOURCE_DATE_EPOCH) * 1000).toISOString()
+      : null);
   if (!createdAt || Number.isNaN(Date.parse(createdAt))) {
     throw new Error('deterministic release build requires createdAt or SOURCE_DATE_EPOCH');
   }
