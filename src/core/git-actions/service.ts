@@ -7,10 +7,12 @@ import { GitActionError, providerFailure } from './errors.js';
 import type {
   GitActionPort,
   GitActionResult,
+  GitCheckResult,
   GitMutationPlan,
   GitRemoteRelation,
   GitRepositorySnapshot,
   GitWorkflowPolicy,
+  PullRequestFinishPlan,
   PullRequestProviderPort,
   PullRequestRecord,
   SideEffectCheckpoint,
@@ -91,6 +93,138 @@ export class GitActionService {
     this.git = options.git;
     this.pullRequests = options.pullRequests;
     this.policy = options.policy;
+  }
+
+  async check(): Promise<GitCheckResult> {
+    const snapshot = await this.git.snapshot();
+    const branch = requireAttached(snapshot);
+    const relation = await this.git.relation(this.policy.pushRemote, branch);
+    return {
+      branch,
+      protected: isProtected(branch, this.policy),
+      head: snapshot.head,
+      worktree: snapshot,
+      relation,
+    };
+  }
+
+  async preflightPullRequestFinish(selector: string): Promise<PullRequestFinishPlan> {
+    if (!this.pullRequests) {
+      throw providerFailure('Pull Request provider adapter is not configured.');
+    }
+
+    const snapshot = await this.git.snapshot();
+    const currentBranch = requireAttached(snapshot);
+    if (dirty(snapshot)) {
+      throw new GitActionError(
+        'PR_FINISH_DIRTY_WORKTREE',
+        'Pull Request finish requires a clean index and worktree.',
+      );
+    }
+
+    let pullRequest: PullRequestRecord;
+    try {
+      pullRequest = await this.pullRequests.view(selector);
+    } catch (error) {
+      throw providerFailure((error as Error).message);
+    }
+
+    if (pullRequest.state !== 'MERGED' || !pullRequest.mergedAt) {
+      throw new GitActionError(
+        'PR_NOT_MERGED',
+        `Pull Request ${pullRequest.id} is not merged.`,
+        { pullRequestId: pullRequest.id, state: pullRequest.state },
+      );
+    }
+
+    const headBranch = pullRequest.headBranch;
+    const returnBranch = pullRequest.baseBranch;
+    if (headBranch === returnBranch) {
+      throw new GitActionError(
+        'PR_STATE_INVALID',
+        'Pull Request head and return branch must differ.',
+        { headBranch, returnBranch },
+      );
+    }
+    if (currentBranch !== headBranch && currentBranch !== returnBranch) {
+      throw new GitActionError(
+        'PR_HEAD_MISMATCH',
+        'Current branch is neither the merged Pull Request head nor its return branch.',
+        { currentBranch, headBranch, returnBranch },
+      );
+    }
+
+    const localHead = await this.git.localBranch(headBranch);
+    if (localHead !== null && localHead !== pullRequest.headOid) {
+      throw new GitActionError(
+        'PR_HEAD_MISMATCH',
+        'Local Pull Request branch moved after the provider-verified merge.',
+        { headBranch, localHead, mergedHeadOid: pullRequest.headOid },
+      );
+    }
+
+    const localReturn = await this.git.localBranch(returnBranch);
+    if (localReturn === null) {
+      throw new GitActionError(
+        'RETURN_BRANCH_MISSING',
+        `Local return branch does not exist: ${returnBranch}.`,
+        { returnBranch },
+      );
+    }
+
+    const relation = await this.git.relation(this.policy.pushRemote, returnBranch);
+    if (relation.remoteHead === null) {
+      throw new GitActionError(
+        'RETURN_BRANCH_REMOTE_MISSING',
+        `Remote return branch does not exist: ${this.policy.pushRemote}/${returnBranch}.`,
+        { remote: this.policy.pushRemote, returnBranch },
+      );
+    }
+    if (relation.ahead > 0 && relation.behind > 0) {
+      throw new GitActionError(
+        'RETURN_BRANCH_DIVERGED',
+        `${returnBranch} diverged from ${this.policy.pushRemote}/${returnBranch}.`,
+        { relation },
+      );
+    }
+    if (relation.ahead > 0) {
+      throw new GitActionError(
+        'RETURN_BRANCH_LOCAL_AHEAD',
+        `${returnBranch} contains local commits not present on the configured remote.`,
+        { relation },
+      );
+    }
+
+    const steps: PullRequestFinishPlan['steps'][number][] = [];
+    if (currentBranch !== returnBranch) {
+      steps.push({ operation: 'switch-return-branch', branch: returnBranch });
+    }
+    if (relation.behind > 0) {
+      steps.push({
+        operation: 'sync-return-branch',
+        expectedRemoteHead: relation.remoteHead,
+      });
+    }
+    if (localHead !== null) {
+      steps.push({
+        operation: 'delete-local-pr-branch',
+        expectedHead: pullRequest.headOid,
+      });
+    }
+
+    return {
+      schemaVersion: 1,
+      action: 'pr-finish',
+      pullRequestId: pullRequest.id,
+      headBranch,
+      mergedHeadOid: pullRequest.headOid,
+      returnBranch,
+      currentBranch,
+      remote: this.policy.pushRemote,
+      resumed: currentBranch === returnBranch,
+      steps,
+      forceDeleteForbidden: true,
+    };
   }
 
   async preflightCommit(input: {
