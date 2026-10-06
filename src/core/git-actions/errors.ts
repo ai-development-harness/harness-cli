@@ -28,8 +28,8 @@ export function redactProviderMessage(message: string): string {
   return message
     .replace(/(authorization:\s*bearer\s+)[^\s]+/gi, '$1[REDACTED]')
     .replace(/([?&](?:access_)?token=)[^&\s]+/gi, '$1[REDACTED]')
-    .replace(/\b(?:ghp|github_pat)_[A-Za-z0-9_]+\b/g, '[REDACTED]')
-    .replace(/\b(?:token|secret|password)=([^\s]+)/gi, (_match, _value) => 'credential=[REDACTED]');
+    .replace(/\b((?:access_)?token|secret|password)=([^\s&]+)/gi, '$1=[REDACTED]')
+    .replace(/\b(?:ghp|github_pat)_[A-Za-z0-9_]+\b/g, '[REDACTED]');
 }
 
 export function providerFailure(
