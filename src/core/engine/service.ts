@@ -2,6 +2,7 @@ import {
   beginCommand,
   blockExecution,
   completeCurrent,
+  currentExecution,
   startExecution,
   type ExecutionRecord,
 } from '../execution/index.js';
@@ -24,6 +25,7 @@ import { resolveRoot } from '../execution/index.js';
 
 const DEFAULT_EXECUTION_ADAPTER: ProtocolExecutionAdapter = {
   startExecution,
+  currentExecution,
   beginCommand,
   resolveRoot,
   completeCurrent,
@@ -147,44 +149,68 @@ export class ProtocolEngine {
     handoff: SemanticHandoffV1,
     proposal: unknown,
   ): Promise<ProtocolEngineResult> {
+    const rootValidation = validateCommandText(handoff.rootCommand);
+    if (!rootValidation.valid) {
+      return structuralBlocker(handoff.rootCommand, rootValidation.code, rootValidation.message);
+    }
+    const canonicalRoot = rootValidation.normalized.join(' > ');
+
     const parsed = parseCanonicalCommand(handoff.command);
-    if (!parsed.valid) return structuralBlocker(handoff.rootCommand, parsed.code, parsed.message);
+    if (!parsed.valid) return structuralBlocker(canonicalRoot, parsed.code, parsed.message);
     const spec = PROTOCOL_MODEL.domains[parsed.domain].commands[parsed.operation];
     if (spec.dispatch.kind !== 'semantic') {
       return {
         kind: 'blocked',
         status: 'BLOCKED',
         executionId: handoff.executionId,
-        rootCommand: handoff.rootCommand,
+        rootCommand: canonicalRoot,
         reasonCode: 'SEMANTIC_COMPLETION_FOR_DETERMINISTIC_COMMAND',
       };
     }
 
+    const current = await this.#execution.currentExecution(this.#projectRoot, canonicalRoot);
+    if (
+      !current ||
+      current.executionId !== handoff.executionId ||
+      current.rootCommand !== canonicalRoot ||
+      current.current.status !== 'running' ||
+      current.current.command !== parsed.normalized
+    ) {
+      return {
+        kind: 'blocked',
+        status: 'BLOCKED',
+        executionId: handoff.executionId,
+        rootCommand: canonicalRoot,
+        reasonCode: 'STALE_SEMANTIC_RESULT',
+        details: {
+          suppliedExecutionId: handoff.executionId,
+          suppliedCommand: parsed.normalized,
+          currentExecutionId: current?.executionId ?? null,
+          currentCommand: current?.current.command ?? null,
+        },
+      };
+    }
+
+    const trustedIdentity = identity(current);
     const committed = await this.#ports.commitSemanticProposal({
-      executionId: handoff.executionId,
-      rootCommand: handoff.rootCommand,
-      command: handoff.command,
-      domain: parsed.domain,
-      operation: parsed.operation,
-      target: parsed.target,
-      input: parsed.input,
+      ...trustedIdentity,
       requiredSkill: spec.dispatch.skill,
       contextPhase: spec.dispatch.contextPhase ?? null,
-      context: handoff.context,
+      context: current.current.context,
       proposal,
     });
 
     await this.#execution.completeCurrent(
       this.#projectRoot,
-      handoff.rootCommand,
+      canonicalRoot,
       committed.result,
       {
-        command: handoff.command,
-        expectedExecutionId: handoff.executionId,
+        command: trustedIdentity.command,
+        expectedExecutionId: trustedIdentity.executionId,
         ...(committed.details ? { details: committed.details } : {}),
       },
     );
-    return this.#drive(handoff.rootCommand);
+    return this.#drive(canonicalRoot);
   }
 
   async #drive(
