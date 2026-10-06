@@ -11,6 +11,7 @@ import {
   executionStatePath,
   readExecutionState,
   resolveRoot,
+  saveExecutionState,
   startExecution,
   unresolvedExecutions,
 } from '../src/core/execution/index.js';
@@ -451,18 +452,45 @@ describe('ExecutionStateService', () => {
 
   it('keeps terminal history bounded to 100 records and ordinal monotonic', async () => {
     const { repo } = await repositoryFixture();
-    for (let index = 0; index < 105; index += 1) {
-      const execution = await startExecution(repo, 'PROJECT STATUS');
-      await completeCurrent(repo, execution.rootCommand, 'SUCCESS', {
-        expectedExecutionId: execution.executionId,
-        details: { iteration: index },
-      });
-    }
+    const timestamp = '2026-10-06T00:00:00.000Z';
+    await saveExecutionState(repo, {
+      schemaVersion: 2,
+      executions: [],
+      stepRecovery: {},
+      recentTerminals: Array.from({ length: 100 }, (_, index) => {
+        const ordinal = index + 1;
+        return {
+          executionId: `exec-seeded-${String(ordinal).padStart(3, '0')}`,
+          ordinal,
+          rootCommand: 'PROJECT STATUS',
+          mode: 'single' as const,
+          status: 'complete' as const,
+          current: {
+            command: 'PROJECT STATUS',
+            status: 'complete' as const,
+            result: 'SUCCESS' as const,
+            completedAt: timestamp,
+            details: { iteration: ordinal },
+          },
+          completedAt: timestamp,
+          updatedAt: timestamp,
+        };
+      }),
+      nextOrdinal: 101,
+    });
+
+    const execution = await startExecution(repo, 'PROJECT STATUS');
+    expect(execution.ordinal).toBe(101);
+    await completeCurrent(repo, execution.rootCommand, 'SUCCESS', {
+      expectedExecutionId: execution.executionId,
+      details: { iteration: 101 },
+    });
+
     const state = await readExecutionState(repo);
     expect(state.recentTerminals).toHaveLength(100);
-    expect(state.nextOrdinal).toBe(106);
-    expect(state.recentTerminals[0].ordinal).toBe(6);
-    expect(state.recentTerminals.at(-1)?.ordinal).toBe(105);
+    expect(state.nextOrdinal).toBe(102);
+    expect(state.recentTerminals[0].ordinal).toBe(2);
+    expect(state.recentTerminals.at(-1)?.ordinal).toBe(101);
   });
 
   it('retains an interrupted root when a newer independent command completes', async () => {
