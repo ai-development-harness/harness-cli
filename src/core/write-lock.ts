@@ -3,7 +3,7 @@ import { mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { hostname as systemHostname } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { resolveHarnessStatePath } from './git.js';
+import { harnessStatePath } from './git.js';
 
 const LOCK_FILE = 'core-write.lock.json';
 
@@ -115,7 +115,11 @@ async function readOwner(lockPath: string): Promise<CoreWriteLockOwner | null> {
 }
 
 export async function coreWriteLockPath(projectRoot: string): Promise<string> {
-  return resolveHarnessStatePath(projectRoot, LOCK_FILE, 'Core write execution lock');
+  // LOCK_FILE is a fixed Core-owned filename. Resolve and validate the stable
+  // Git-private parent instead of the volatile lock entry itself: another
+  // serialized writer may create/remove that entry between lstat() and
+  // realpath() while we are contending for it.
+  return path.join(await harnessStatePath(projectRoot), LOCK_FILE);
 }
 
 async function createLock(
@@ -127,7 +131,10 @@ async function createLock(
 ): Promise<{ path: string; owner: CoreWriteLockOwner }> {
   const target = await coreWriteLockPath(projectRoot);
   await mkdir(path.dirname(target), { recursive: true });
-  const checked = await coreWriteLockPath(projectRoot);
+  // Re-resolve the now-existing Git-private parent after mkdir so symlink /
+  // worktree containment is checked against the actual directory entry.
+  const checkedRoot = await harnessStatePath(projectRoot);
+  const checked = path.join(checkedRoot, LOCK_FILE);
   const owner: CoreWriteLockOwner = {
     schemaVersion: 1,
     ownerId: randomUUID(),
