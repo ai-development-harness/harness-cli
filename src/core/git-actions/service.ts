@@ -7,8 +7,10 @@ import { GitActionError, providerFailure } from './errors.js';
 import type {
   GitActionPort,
   GitActionResult,
+  GitCheckReport,
   GitCheckResult,
   GitMutationPlan,
+  GitPreflightDiagnostic,
   GitRemoteRelation,
   GitRepositorySnapshot,
   GitWorkflowPolicy,
@@ -105,6 +107,113 @@ export class GitActionService {
       head: snapshot.head,
       worktree: snapshot,
       relation,
+    };
+  }
+
+  async diagnose(): Promise<GitCheckReport> {
+    const facts = await this.check();
+    const observations: GitCheckReport['observations'][number][] = [];
+    const dirtyWorktree =
+      facts.worktree.staged.length > 0 ||
+      facts.worktree.unstaged.length > 0 ||
+      facts.worktree.untracked.length > 0;
+
+    if (facts.protected) {
+      observations.push({
+        code: 'PROTECTED_BRANCH',
+        message: `Current branch ${facts.branch} is protected by Harness Git policy.`,
+        details: { branch: facts.branch },
+      });
+    }
+    if (dirtyWorktree) {
+      observations.push({
+        code: 'DIRTY_WORKTREE',
+        message: 'Index or worktree contains local changes.',
+        details: {
+          staged: facts.worktree.staged,
+          unstaged: facts.worktree.unstaged,
+          untracked: facts.worktree.untracked,
+        },
+      });
+    }
+    if (facts.relation.remoteExists === false) {
+      observations.push({
+        code: 'REMOTE_MISSING',
+        message: `Configured Git remote does not exist: ${this.policy.pushRemote}.`,
+        details: { remote: this.policy.pushRemote },
+      });
+    } else if (facts.relation.remoteHead === null) {
+      observations.push({
+        code: 'UNPUBLISHED_BRANCH',
+        message: `Current branch is not published to ${this.policy.pushRemote}.`,
+        details: { branch: facts.branch, remote: this.policy.pushRemote },
+      });
+    } else if (facts.relation.ahead > 0 && facts.relation.behind > 0) {
+      observations.push({
+        code: 'DIVERGED',
+        message: 'Local and remote branch histories have diverged.',
+        details: { relation: facts.relation },
+      });
+    } else {
+      if (facts.relation.behind > 0) {
+        observations.push({
+          code: 'REMOTE_AHEAD',
+          message: 'Configured remote branch contains commits missing from local HEAD.',
+          details: { relation: facts.relation },
+        });
+      }
+      if (facts.relation.ahead > 0) {
+        observations.push({
+          code: 'LOCAL_AHEAD',
+          message: 'Local branch contains commits not present on the configured remote.',
+          details: { relation: facts.relation },
+        });
+      }
+    }
+    if (facts.branch === this.policy.pullRequestBase) {
+      observations.push({
+        code: 'PULL_REQUEST_BASE_BRANCH',
+        message: 'Current branch is the configured Pull Request base branch.',
+        details: { branch: facts.branch, base: this.policy.pullRequestBase },
+      });
+    }
+
+    const diagnostic = async (
+      action: GitPreflightDiagnostic['action'],
+      run: () => Promise<GitMutationPlan>,
+    ): Promise<GitPreflightDiagnostic> => {
+      try {
+        return { action, status: 'READY', plan: await run() };
+      } catch (error) {
+        if (!(error instanceof GitActionError)) throw error;
+        return {
+          action,
+          status: 'BLOCKED',
+          reasonCode: error.code,
+          message: error.message,
+          details: error.details,
+        };
+      }
+    };
+
+    const preconditions = await Promise.all([
+      diagnostic('commit', () => this.preflightCommit()),
+      diagnostic('push', () => this.preflightPush()),
+      diagnostic('pull-request', () => this.preflightPullRequest()),
+      diagnostic('sync', () => this.preflightSync()),
+    ]);
+
+    return {
+      schemaVersion: 1,
+      status: 'PASS',
+      ...facts,
+      configured: {
+        pushRemote: this.policy.pushRemote,
+        pullRequestBase: this.policy.pullRequestBase,
+        syncMode: this.policy.syncMode,
+      },
+      observations,
+      preconditions,
     };
   }
 
@@ -275,6 +384,13 @@ export class GitActionService {
     }
 
     const relation = await this.git.relation(this.policy.pushRemote, branch);
+    if (relation.remoteExists === false) {
+      throw new GitActionError(
+        'REMOTE_MISSING',
+        `Configured Git remote does not exist: ${this.policy.pushRemote}.`,
+        { remote: this.policy.pushRemote },
+      );
+    }
     if (relation.behind > 0) {
       const code = relation.ahead > 0 ? 'DIVERGED' : 'REMOTE_AHEAD';
       throw new GitActionError(
@@ -309,6 +425,13 @@ export class GitActionService {
     }
 
     const relation = await this.git.relation(this.policy.pushRemote, branch);
+    if (relation.remoteExists === false) {
+      throw new GitActionError(
+        'REMOTE_MISSING',
+        `Configured Git remote does not exist: ${this.policy.pushRemote}.`,
+        { remote: this.policy.pushRemote },
+      );
+    }
     if (relation.remoteHead === null) {
       throw new GitActionError('UNPUBLISHED_BRANCH', 'Pull Request head branch must be published first.', {
         branch,
@@ -321,6 +444,18 @@ export class GitActionService {
         localHead: head,
         remoteHead: relation.remoteHead,
       });
+    }
+
+    const baseRelation = await this.git.relation(this.policy.pushRemote, this.policy.pullRequestBase);
+    if (baseRelation.remoteExists === false || baseRelation.remoteHead === null) {
+      throw new GitActionError(
+        'PR_BASE_MISSING',
+        `Configured Pull Request base does not exist on ${this.policy.pushRemote}: ${this.policy.pullRequestBase}.`,
+        {
+          remote: this.policy.pushRemote,
+          base: this.policy.pullRequestBase,
+        },
+      );
     }
 
     return {
@@ -338,6 +473,13 @@ export class GitActionService {
     const snapshot = await this.git.snapshot();
     const branch = requireAttached(snapshot);
     const relation = await this.git.relation(this.policy.pushRemote, branch);
+    if (relation.remoteExists === false) {
+      throw new GitActionError(
+        'REMOTE_MISSING',
+        `Configured Git remote does not exist: ${this.policy.pushRemote}.`,
+        { remote: this.policy.pushRemote },
+      );
+    }
 
     if (relation.remoteHead === null) {
       throw new GitActionError('UNPUBLISHED_BRANCH', 'Cannot sync a branch without a remote counterpart.', {
