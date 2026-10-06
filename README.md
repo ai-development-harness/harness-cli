@@ -45,6 +45,7 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 - `harness step list` — read-only список канонических STEP и их lifecycle/planning facts;
 - `harness step show STEP-NNN` — read-only подробное состояние STEP; также принимает canonical numeric form `NNN`;
 - `harness step next` — read-only рекомендация следующей канонической STEP-команды;
+- `harness git check` — read-only snapshot Git state и typed precondition diagnostics для commit/push/PR/sync;
 - `harness update check [--target-release X.Y.Z]` — read-only построить deterministic update plan поверх установленных releases;
 - `harness update apply [--target-release X.Y.Z]` — применить update release pin через Core UpdateService с его locking/checkpoint/recovery semantics;
 - `harness release install <directory>` — установить локальный проверенный release tree;
@@ -67,6 +68,8 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 `doctor` и compatibility-команда `status` используют общий Release Resolver и не выполняют silent fallback на другую версию. Новые `project status` и `step list/show/next` являются чистыми Core read surfaces: они не вызывают `writeProjections()` и не требуют installed release только для чтения project-owned канонических артефактов.
 
 CLI **не запускает Claude Code или Codex**.
+
+`git check` использует release-owned Git safety policy и read-only local Git adapter. Команда не выполняет `fetch`, `commit`, `push`, `merge`, переключение/создание веток или provider mutations. Она возвращает factual branch/HEAD/worktree/remote-tracking state и отдельные typed precondition diagnostics для будущих canonical Git actions.
 
 `update check` ничего не записывает в проект. Без `--target-release` Core выбирает самый новый verified installed release новее текущего pin. Явная цель должна быть уже установлена и проверяема; CLI не использует `latest`, `main` или сетевой fallback. `update apply` не реализует собственные update rules: compatibility checks, write lock, checkpoint и crash recovery остаются внутри `UpdateService`.
 
@@ -119,6 +122,7 @@ npm run dev -- project status --json
 npm run dev -- step list --json
 npm run dev -- step show 001 --json
 npm run dev -- step next --json
+npm run dev -- git check --json
 npm run dev -- update check --json
 npm run dev -- update apply --target-release 0.11.0 --json
 npm run dev -- migrate inspect
