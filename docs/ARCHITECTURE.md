@@ -184,6 +184,26 @@ Completion proof остаётся authority review layer (#37); до подкл�
 
 Связанные требования: `CLI-REQ-003`, `CLI-REQ-004`, `CLI-REQ-140`–`CLI-REQ-148`, `CLI-REQ-200`–`CLI-REQ-202`, `CLI-REQ-251`.
 
+### 4.3.4 Execution State Module
+
+`src/core/execution/` владеет clone/worktree-local execution continuity:
+
+- schema-v2 bounded execution state;
+- single/chain/orchestration invocation cursors;
+- monotonic ordinals и exact executionId ownership;
+- STEP implementation recovery baseline;
+- Intent Basis capture/compare;
+- deterministic resume selection;
+- bounded terminal tombstones.
+
+State хранится только в Git-private `ai-harness`, не в tracked `.harness/local/**`.
+
+Read-modify-write transactions используют shared `CoreWriteLock`; migration execution проходит через тот же outer concurrency gate и сохраняет собственный migration recovery lease как специализированный внутренний contract.
+
+Нормативное описание: `docs/EXECUTION_STATE.md`.
+
+Связанные требования: `CLI-REQ-053`–`CLI-REQ-056`, `CLI-REQ-145`–`CLI-REQ-148`, `CLI-REQ-223`, `CLI-REQ-240`–`CLI-REQ-253`.
+
 ### 4.4 Storage Module
 
 Отвечает за три независимых класса storage:
