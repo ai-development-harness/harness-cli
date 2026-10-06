@@ -14,6 +14,7 @@
 - **COMPAT** — обязательно для поддерживаемой миграции существующих repository-embedded проектов.
 - **PLANNED** — входит в целевую архитектуру, но не блокирует первый стабильный CLI.
 - **NON-GOAL** — явно не является обязательной частью v1.
+- **RETIRED** — исторический ID больше не является активным требованием и не переиспользуется.
 
 Идентификаторы `CLI-REQ-XXX` стабильны. Нельзя переиспользовать существующий ID для требования с другим смыслом.
 
@@ -23,10 +24,10 @@
 - **CLI-REQ-002 · MUST.** Долговременные проектные знания — requirements, ADR, STEP, reviews, audits, evidence и project-specific skills — должны оставаться в Git-репозитории проекта.
 - **CLI-REQ-003 · MUST.** Вычислимые операции — parsing, validation, state transitions, Git safety, release resolution, locking и migration mechanics — должны выполняться детерминированным кодом.
 - **CLI-REQ-004 · MUST.** Семантика Harness Core не должна зависеть от Codex, Claude Code или другого конкретного runtime.
-- **CLI-REQ-005 · MUST.** Интеграция Harness не должна по умолчанию ломать нативные permission prompts, approvals, вопросы пользователю, аутентификацию и TTY-взаимодействие runtime.
+- **CLI-REQ-005 · MUST.** Harness не должен требовать проксирования AI runtime через CLI: нативные permission prompts, approvals, вопросы пользователю, аутентификация и TTY остаются ответственностью независимо запущенного runtime.
 - **CLI-REQ-006 · MUST.** Архитектура должна оперировать понятием Harness Distribution, а не считать npm единственным способом поставки.
 - **CLI-REQ-007 · NON-GOAL.** GUI не является обязательным компонентом Harness CLI v1.
-- **CLI-REQ-008 · NON-GOAL.** CLI v1 не обязан быть process supervisor для Codex или Claude Code.
+- **CLI-REQ-008 · MUST.** Harness CLI не запускает, не выбирает и не управляет жизненным циклом Codex, Claude Code или другого AI runtime.
 - **CLI-REQ-009 · NON-GOAL.** Глобальная база Harness не должна заменять Git как source of truth project artifacts.
 
 ## 4. Версионирование
@@ -66,7 +67,7 @@
 - **CLI-REQ-052 · MUST.** Requirements, ADR, STEP, reviews и другие project-owned artifacts не должны иметь отдельную каноническую копию в global storage.
 - **CLI-REQ-053 · MUST.** Операционное состояние конкретного clone/worktree должно разрешаться через `git rev-parse --git-path ai-harness`.
 - **CLI-REQ-054 · MUST.** Реализация не должна предполагать, что `.git` всегда является обычной директорией в корне проекта.
-- **CLI-REQ-055 · MUST.** Execution locks, temporary state, runtime session metadata и cache не должны попадать в tracked project files.
+- **CLI-REQ-055 · MUST.** Execution locks, temporary operational state и cache не должны попадать в tracked project files.
 - **CLI-REQ-056 · PLANNED.** Clone-local state должен позволять безопасно возобновлять поддерживаемые executions после прерывания.
 
 ## 8. Команда setup
@@ -77,7 +78,7 @@
 - **CLI-REQ-063 · MUST.** Существующий `harness.yaml` не должен молча перезаписываться.
 - **CLI-REQ-064 · MUST.** Отсутствующие project directories должны создаваться без удаления или перезаписи существующего содержимого.
 - **CLI-REQ-065 · MUST.** При отсутствии `AGENTS.md` должен создаваться минимальный runtime-neutral bootstrap; существующий файл не перезаписывается молча.
-- **CLI-REQ-066 · MUST.** При отсутствии `CLAUDE.md` может создаваться минимальный Claude Code adapter; существующий файл не перезаписывается молча.
+- **CLI-REQ-066 · MUST.** При отсутствии `CLAUDE.md` может создаваться минимальный Claude Code bootstrap, который ссылается на общий Harness contract; существующий файл не перезаписывается молча.
 - **CLI-REQ-067 · MUST.** Локальный private brief должен безопасно добавляться в `.gitignore`, если он предусмотрен project contract.
 - **CLI-REQ-068 · MUST.** `setup` должен подготовить clone-local state path.
 - **CLI-REQ-069 · MUST.** `harness setup` не заменяет semantic-команду `PROJECT INIT`; после setup проект может оставаться `initialized: false`.
@@ -125,7 +126,7 @@
 
 - **CLI-REQ-140 · PLANNED.** Harness Core должен иметь единый детерминированный parser canonical commands.
 - **CLI-REQ-141 · PLANNED.** Допустимые transitions и chain semantics должны задаваться одной machine-readable state model.
-- **CLI-REQ-142 · PLANNED.** CLI, runtime adapters и внешние integrations не должны иметь независимые реализации state machine.
+- **CLI-REQ-142 · PLANNED.** CLI/Core и внешние integrations не должны иметь независимые реализации state machine.
 - **CLI-REQ-143 · PLANNED.** Нормализация targets вроде `17 -> STEP-017` должна быть общей и детерминированной.
 - **CLI-REQ-144 · PLANNED.** Структурно недопустимая команда должна отклоняться до semantic agent work.
 - **CLI-REQ-145 · PLANNED.** Активное Harness execution должно иметь машиночитаемое clone/worktree-scoped состояние.
@@ -133,15 +134,19 @@
 - **CLI-REQ-147 · PLANNED.** Поддерживаемые executions должны иметь детерминированный механизм resume.
 - **CLI-REQ-148 · PLANNED.** Критическое execution state не должно зависеть только от chat history AI runtime.
 
-## 13. Runtime Adapter Contract
+## 13. External AI runtime boundary
 
-- **CLI-REQ-160 · PLANNED.** Harness Core должен определить единый runtime-neutral adapter contract.
-- **CLI-REQ-161 · PLANNED.** Adapter должен уметь сообщать capabilities.
-- **CLI-REQ-162 · PLANNED.** Adapter должен предоставлять machine-readable identity/auth state, если runtime имеет такой интерфейс.
-- **CLI-REQ-163 · PLANNED.** Любой runtime execution должен получать явный `projectRoot`.
-- **CLI-REQ-164 · PLANNED.** Ошибка выбранного runtime не должна приводить к silent fallback на другой runtime.
-- **CLI-REQ-165 · PLANNED.** Контракт должен определить resume и cancellation там, где runtime это поддерживает.
-- **CLI-REQ-166 · PLANNED.** Model/effort относятся к runtime adapter/profile и не меняют семантику Harness protocol.
+- **CLI-REQ-160 · RETIRED.** Исторический RuntimeAdapter contract больше не является частью продукта `harness-cli`; ID не переиспользуется.
+- **CLI-REQ-161 · RETIRED.** Runtime capability discovery внутри CLI удалён из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-162 · RETIRED.** Runtime identity/auth management внутри CLI удалён из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-163 · RETIRED.** Runtime execution ownership внутри CLI удалён из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-164 · RETIRED.** Runtime selection/fallback внутри CLI удалён из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-165 · RETIRED.** Runtime process resume/cancellation внутри CLI удалён из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-166 · RETIRED.** Runtime model/effort profiles внутри CLI удалены из целевой архитектуры; ID не переиспользуется.
+- **CLI-REQ-167 · MUST.** AI runtime является внешним caller: он запускается независимо и при необходимости сам вызывает Harness deterministic interfaces.
+- **CLI-REQ-168 · MUST.** Core может возвращать machine-readable semantic handoff, но не должен выполнять model inference или управлять AI runtime process lifecycle.
+- **CLI-REQ-169 · MUST.** Возврат semantic proposal/result в Core должен быть runtime-neutral и не требовать SDK конкретного AI runtime.
+- **CLI-REQ-170 · MUST.** External caller не получает authority над canonical execution state, transition commits, deterministic writers или Git safety policy.
 
 ## 14. Git safety
 
@@ -201,7 +206,7 @@
 ## 21. Явные non-goals
 
 - **CLI-REQ-270 · NON-GOAL.** Не считать GUI обязательной частью продукта.
-- **CLI-REQ-271 · NON-GOAL.** Не считать запуск Codex/Claude через CLI обязательным для v1.
+- **CLI-REQ-271 · NON-GOAL.** Запуск, выбор, auth management или process supervision Codex/Claude/другого AI runtime через Harness CLI не являются функцией продукта.
 - **CLI-REQ-272 · NON-GOAL.** Не считать npm единственной допустимой distribution model.
 - **CLI-REQ-273 · NON-GOAL.** Не выполнять потенциально разрушающую migration автоматически без явного действия пользователя.
 - **CLI-REQ-274 · NON-GOAL.** Не переносить каноническое project knowledge из Git в скрытое глобальное хранилище.
@@ -221,7 +226,7 @@
 
 - Документ находится в `docs/PRODUCT_REQUIREMENTS.md`.
 - Нормативные требования имеют стабильные `CLI-REQ-XXX`.
-- Обязательные, compatibility, planned и non-goal требования различимы.
+- Обязательные, compatibility, planned, retired и non-goal требования различимы.
 - GUI не считается обязательной частью продукта.
 - CLI package version, Harness release и project schema version разделены.
 - Harness Core не требуется хранить внутри пользовательского repository.
