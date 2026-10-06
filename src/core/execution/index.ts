@@ -7,6 +7,7 @@ export {
   beginCommand,
   blockExecution,
   completeCurrent,
+  currentExecution,
   emptyExecutionState,
   findCompleted,
   readExecutionState,
