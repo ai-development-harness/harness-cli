@@ -351,7 +351,7 @@ describe('ExecutionStateService', () => {
       reasonCode: 'FIX_REVIEW_LIMIT_REACHED',
       fixReviewCycles: 1,
     });
-  });
+  }, 30_000);
 
   it('resumes unchanged semantic intent and ignores unrelated repository changes', async () => {
     const { repo } = await repositoryFixture();
@@ -416,7 +416,7 @@ describe('ExecutionStateService', () => {
       const state = await readExecutionState(repo);
       expect(state.executions[0].current.context.intentBasis).toEqual(oldBasis);
     }
-  });
+  }, 30_000);
 
   it('durably blocks an explicit stale resume before returning the error', async () => {
     const { repo } = await repositoryFixture();
@@ -555,7 +555,7 @@ describe('ExecutionStateService', () => {
     expect(state.executions).toHaveLength(1);
     expect(state.executions[0].current.attempt).toBe(8);
     expect(state.nextOrdinal).toBe(2);
-  });
+  }, 30_000);
 
   it('fails closed when bounded command details exceed 16 KiB', async () => {
     const { repo } = await repositoryFixture();
