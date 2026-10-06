@@ -41,6 +41,8 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 - `harness config` — read-only показать effective `harness.yaml` после применения schema defaults;
 - `harness validate` — проверить `harness.yaml`;
 - `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree;
+- `harness update check [--target-release X.Y.Z]` — read-only построить deterministic update plan поверх установленных releases;
+- `harness update apply [--target-release X.Y.Z]` — применить update release pin через Core UpdateService с его locking/checkpoint/recovery semantics;
 - `harness release install <directory>` — установить локальный проверенный release tree;
 - `harness release list` — показать установленные releases;
 - `harness release verify <version>` — повторно проверить immutable release;
@@ -61,6 +63,8 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 `doctor` и `status` используют общий Release Resolver и не выполняют silent fallback на другую версию.
 
 CLI **не запускает Claude Code или Codex**.
+
+`update check` ничего не записывает в проект. Без `--target-release` Core выбирает самый новый verified installed release новее текущего pin. Явная цель должна быть уже установлена и проверяема; CLI не использует `latest`, `main` или сетевой fallback. `update apply` не реализует собственные update rules: compatibility checks, write lock, checkpoint и crash recovery остаются внутри `UpdateService`.
 
 ## Что хранится в проекте
 
@@ -107,6 +111,8 @@ npm run dev -- doctor
 npm run dev -- config --json
 npm run dev -- validate
 npm run dev -- status
+npm run dev -- update check --json
+npm run dev -- update apply --target-release 0.11.0 --json
 npm run dev -- migrate inspect
 npm run dev -- migrate plan --json
 ```

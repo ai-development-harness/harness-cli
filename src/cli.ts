@@ -17,6 +17,7 @@ import {
 import { setupCommand } from './commands/setup.js';
 import { statusCommand } from './commands/status.js';
 import { validateCommand } from './commands/validate.js';
+import { updateApplyCommand, updateCheckCommand } from './commands/update.js';
 import { getPackageVersion } from './core/package.js';
 
 const program = new Command();
@@ -64,6 +65,34 @@ program
   .option('--json', 'Write a machine-readable JSON result')
   .action((options: { json?: boolean }) =>
     statusCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+const update = program
+  .command('update')
+  .description('Check and apply deterministic Harness release pin updates');
+
+update
+  .command('check')
+  .description('Check the deterministic Harness update plan without mutating the project')
+  .option('--target-release <release>', 'Explicit installed Harness release target')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { targetRelease?: string; json?: boolean }) =>
+    updateCheckCommand(process.cwd(), {
+      targetRelease: options.targetRelease,
+      json: options.json ?? false,
+    }),
+  );
+
+update
+  .command('apply')
+  .description('Apply a deterministic Harness release pin update through Core UpdateService')
+  .option('--target-release <release>', 'Explicit installed Harness release target')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { targetRelease?: string; json?: boolean }) =>
+    updateApplyCommand(process.cwd(), {
+      targetRelease: options.targetRelease,
+      json: options.json ?? false,
+    }),
   );
 
 const migrate = program
