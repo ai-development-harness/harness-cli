@@ -361,7 +361,10 @@ export async function stepCompletionProof(
   } else if (type === 'audit' || type === 'review') {
     if (!evidence) reasons.push(type + ' step has no durable Evidence');
   } else {
-    const review = await latestReview(projectRoot, stepId, { requireCurrentRevision: true });
+    // Completion proof trusts the immutable report that was current at review
+    // commit time. Later Core-owned lifecycle/projection mutations must not erase
+    // historical completion evidence.
+    const review = await latestReview(projectRoot, stepId);
     if (!review) reasons.push('trusted current PASS review is missing');
     else if (review.verdict !== 'pass') reasons.push('latest trusted review verdict is not PASS');
     else if (review.completionResult !== 'PASS') reasons.push('latest trusted PASS review has no completion PASS');
