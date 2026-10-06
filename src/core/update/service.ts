@@ -300,21 +300,74 @@ export class UpdateService {
         };
       }
 
-      const plan = await this.check(chosenTarget);
-      if (plan.status !== 'ready' || !plan.targetDigest || plan.targetProjectSchemaVersion === null) {
-        throw new UpdateError(
-          'UPDATE_BLOCKED',
-          'Harness update is blocked by deterministic compatibility checks.',
-          { blockers: plan.blockers, plan },
-        );
-      }
-
       const previousPrepared =
         existing &&
         existing.operationId === operationId &&
         (existing.phase === 'prepared' || existing.phase === 'migration_verified')
           ? existing
           : null;
+
+      let plan: UpdatePlan;
+      if (previousPrepared?.phase === 'migration_verified') {
+        const current = await this.projectState.read(this.projectRoot);
+        if (
+          current.release !== previousPrepared.currentRelease ||
+          current.schemaVersion !== previousPrepared.projectSchemaAfter
+        ) {
+          throw new UpdateError(
+            'UPDATE_POSTCONDITION_FAILED',
+            'Migrated project state no longer matches the durable update checkpoint.',
+            { checkpoint: previousPrepared, current },
+          );
+        }
+        const verifiedTarget = await this.releaseStore.verify(previousPrepared.targetRelease);
+        if (verifiedTarget.digest !== previousPrepared.targetDigest) {
+          throw new UpdateError(
+            'UPDATE_POSTCONDITION_FAILED',
+            'Target release identity changed after migration verification.',
+            {
+              expectedDigest: previousPrepared.targetDigest,
+              actualDigest: verifiedTarget.digest,
+              targetRelease: previousPrepared.targetRelease,
+            },
+          );
+        }
+        if (!verifiedTarget.manifest.compatibility.projectSchema.supported.includes(current.schemaVersion)) {
+          throw new UpdateError(
+            'UPDATE_POSTCONDITION_FAILED',
+            'Target release does not support the migrated project schema recorded by the checkpoint.',
+            {
+              targetRelease: previousPrepared.targetRelease,
+              projectSchemaVersion: current.schemaVersion,
+            },
+          );
+        }
+        plan = {
+          schemaVersion: 1,
+          status: 'ready',
+          currentRelease: previousPrepared.currentRelease,
+          targetRelease: previousPrepared.targetRelease,
+          targetDigest: previousPrepared.targetDigest,
+          projectSchemaVersion: previousPrepared.projectSchemaBefore,
+          targetProjectSchemaVersion: previousPrepared.projectSchemaAfter,
+          migrationRequired: previousPrepared.migrationRequired,
+          blockers: [],
+          mutationPlan: {
+            updateReleasePin: true,
+            createEmbeddedTools: false,
+            genericThreeWayUpdate: false,
+          },
+        };
+      } else {
+        plan = await this.check(chosenTarget);
+        if (plan.status !== 'ready' || !plan.targetDigest || plan.targetProjectSchemaVersion === null) {
+          throw new UpdateError(
+            'UPDATE_BLOCKED',
+            'Harness update is blocked by deterministic compatibility checks.',
+            { blockers: plan.blockers, plan },
+          );
+        }
+      }
 
       if (!previousPrepared) {
         await writeUpdateCheckpoint(this.projectRoot, {
