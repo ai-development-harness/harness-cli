@@ -96,7 +96,20 @@ export async function buildHarnessRelease(options: BuildHarnessReleaseOptions) {
 
   await rm(outputRoot, { recursive: true, force: true });
   await mkdir(outputRoot, { recursive: true });
-  await cp(coreSourceRoot, path.join(outputRoot, 'core'), { recursive: true });
+  const coreRoot = path.join(outputRoot, 'core');
+  await cp(coreSourceRoot, coreRoot, { recursive: true });
+
+  const runtimeDependencies = ['env-paths', 'yaml', 'zod'] as const;
+  const releaseNodeModules = path.join(coreRoot, 'node_modules');
+  await mkdir(releaseNodeModules, { recursive: true });
+  for (const dependency of runtimeDependencies) {
+    const source = path.join(process.cwd(), 'node_modules', dependency);
+    const target = path.join(releaseNodeModules, dependency);
+    if (!(await stat(source)).isDirectory()) {
+      throw new Error(`runtime dependency missing from build environment: ${dependency}`);
+    }
+    await cp(source, target, { recursive: true });
+  }
 
   await mkdir(path.join(outputRoot, 'protocol'), { recursive: true });
   await writeFile(path.join(outputRoot, 'protocol', 'model.json'), `${JSON.stringify(PROTOCOL_MODEL, null, 2)}\n`);
