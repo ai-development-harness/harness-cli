@@ -28,12 +28,18 @@ program
 program
   .command('setup')
   .description('Configure the current Git repository for Harness')
-  .action(() => setupCommand(process.cwd()));
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    setupCommand(process.cwd(), { json: options.json ?? false }),
+  );
 
 program
   .command('doctor')
   .description('Check local Harness prerequisites and project structure')
-  .action(() => doctorCommand(process.cwd()));
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    doctorCommand(process.cwd(), { json: options.json ?? false }),
+  );
 
 program
   .command('validate')

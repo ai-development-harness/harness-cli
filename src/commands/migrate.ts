@@ -15,6 +15,7 @@ import {
   type MigrationPlan,
   type MigrationPlannerOptions,
 } from '../core/migration/index.js';
+import { jsonFailure, setCliExitCode, writeJson } from './presentation.js';
 
 interface MigrationCliOptions {
   json?: boolean;
@@ -23,9 +24,6 @@ interface MigrationCliOptions {
   out?: string;
 }
 
-function writeJson(value: unknown): void {
-  console.log(JSON.stringify(value, null, 2));
-}
 
 function errorPayload(error: unknown): {
   code: string;
@@ -48,14 +46,14 @@ function errorPayload(error: unknown): {
 function handleError(error: unknown, json: boolean): void {
   const payload = errorPayload(error);
   if (json) {
-    writeJson({ ok: false, error: payload });
+    writeJson(jsonFailure('failure', payload));
   } else {
     console.error(`${payload.code}: ${payload.message}`);
     if (Object.keys(payload.details).length > 0) {
       console.error(JSON.stringify(payload.details, null, 2));
     }
   }
-  process.exitCode = 1;
+  setCliExitCode('failure');
 }
 
 function plannerOptions(options: MigrationCliOptions): MigrationPlannerOptions {
@@ -128,7 +126,7 @@ export async function migrationInspectCommand(
   try {
     const inspection = await inspectProject(cwd, { fromRelease: options.from });
     if (options.json) {
-      writeJson({ ok: true, inspection });
+      writeJson({ schemaVersion: 1, ok: true, inspection });
       return;
     }
     printInspectionHuman(inspection);
@@ -146,6 +144,7 @@ export async function migrationPlanCommand(
 
     if (preparation.status === 'already-migrated') {
       const output = {
+        schemaVersion: 1,
         ok: true,
         status: 'already-migrated',
         projectRoot: preparation.projectRoot,
@@ -163,8 +162,10 @@ export async function migrationPlanCommand(
 
     if (options.json) {
       writeJson({
+        schemaVersion: 1,
         ok: preparation.status === 'ready',
         status: preparation.status,
+        ...(preparation.status === 'blocked' ? { category: 'blocked' } : {}),
         plan: preparation.plan,
         savedPlan,
       });
@@ -182,7 +183,7 @@ export async function migrationPlanCommand(
       }
     }
 
-    if (preparation.status === 'blocked') process.exitCode = 2;
+    if (preparation.status === 'blocked') setCliExitCode('blocked');
   } catch (error) {
     handleError(error, options.json ?? false);
   }
@@ -203,7 +204,7 @@ export async function migrationApplyCommand(
     }
     const result = await executeLegacyThinMigration({ status: 'ready', plan: saved.plan });
     if (json) {
-      writeJson({ ok: true, status: result.status, planPath: saved.path, result });
+      writeJson({ schemaVersion: 1, ok: true, status: result.status, planPath: saved.path, result });
       return;
     }
     console.log(`Migration ${saved.plan.migrationId}: ${result.status}`);
@@ -225,7 +226,7 @@ export async function migrationResumeCommand(
     const root = await findGitRoot(cwd);
     const result = await resumeLegacyThinMigration(root, migrationId);
     if (json) {
-      writeJson({ ok: true, status: result.status, result });
+      writeJson({ schemaVersion: 1, ok: true, status: result.status, result });
       return;
     }
     console.log(`Migration ${migrationId}: ${result.status}`);
@@ -281,7 +282,7 @@ export async function migrationStatusCommand(
     const checkpoints = await Promise.all(ids.map((id) => checkpointDiagnostic(root, id)));
 
     if (json) {
-      writeJson({ ok: true, projectRoot: root, executionLock, checkpoints });
+      writeJson({ schemaVersion: 1, ok: true, projectRoot: root, executionLock, checkpoints });
       return;
     }
 
