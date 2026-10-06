@@ -38,6 +38,7 @@ CLI не запускает AI runtime. Текущий deterministic surface в�
 
 - `harness setup` — подготовить существующий Git-репозиторий для Harness;
 - `harness doctor` — проверить окружение и ожидаемую структуру проекта;
+- `harness config` — read-only показать effective `harness.yaml` после применения schema defaults;
 - `harness validate` — проверить `harness.yaml`;
 - `harness status` — показать закреплённый релиз Harness, его фактический resolution status и путь к локальному состоянию конкретного clone/worktree;
 - `harness release install <directory>` — установить локальный проверенный release tree;
@@ -82,7 +83,7 @@ tests/
 .git/ai-harness/
 ```
 
-В дальнейшем установленный дистрибутив Harness должен содержать код протокола, валидаторы, базовые skills, runtime-адаптеры и неизменяемые релизы вне пользовательского репозитория.
+Установленный дистрибутив Harness содержит код протокола, валидаторы, базовые skills и неизменяемые релизы вне пользовательского репозитория. AI runtime остаётся внешним caller и не является частью CLI/Core distribution boundary.
 
 ## Разработка
 
@@ -103,6 +104,7 @@ npm run dev -- release list
 npm run dev -- release verify 0.10.4
 npm run dev -- setup
 npm run dev -- doctor
+npm run dev -- config --json
 npm run dev -- validate
 npm run dev -- status
 npm run dev -- migrate inspect
