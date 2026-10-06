@@ -15,3 +15,8 @@ export type {
   SemanticCompletionIdentityV1,
   SemanticHandoffV1,
 } from './types.js';
+export {
+  ExternalCallerRequestError,
+  parseExternalCallerRequest,
+  type ExternalCallerRequestV1,
+} from './external.js';
