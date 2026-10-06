@@ -510,6 +510,59 @@ describe('review, verification and completion Core', () => {
     ).toBeNull();
   }, 30_000);
 
+  it('persists canonical FAIL and BLOCKED review verdicts without completing STEP', async () => {
+    const failRepo = await repositoryFixture();
+    await implementedAndVerified(failRepo);
+    const failExecution = await startExecution(failRepo, 'STEP REVIEW STEP-001');
+    const failResult = await commitStepReview(failRepo, {
+      rootCommand: failExecution.rootCommand,
+      stepId: 'STEP-001',
+      executionId: failExecution.executionId,
+      proposal: {
+        verdict: 'fail',
+        findings: [finding()],
+        verificationObservations: 'Verification is fresh but implementation has a material defect.',
+        rationale: 'The implementation finding must route to FIX.',
+        specializedReviews: {
+          security: { status: 'pass', summary: 'No security blocker in the finding.' },
+          tests: { status: 'fail', summary: 'Behavior does not satisfy the reviewed scenario.' },
+        },
+        completion: null,
+      },
+      now: new Date('2026-10-06T07:03:00Z'),
+    });
+    expect(failResult).toMatchObject({ status: 'FAIL', verdict: 'fail' });
+    expect((await stepCompletionProof(failRepo, 'STEP-001')).complete).toBe(false);
+
+    const blockedRepo = await repositoryFixture();
+    await implementedAndVerified(blockedRepo);
+    const blockedExecution = await startExecution(blockedRepo, 'STEP REVIEW STEP-001');
+    const blockedResult = await commitStepReview(blockedRepo, {
+      rootCommand: blockedExecution.rootCommand,
+      stepId: 'STEP-001',
+      executionId: blockedExecution.executionId,
+      proposal: {
+        verdict: 'blocked',
+        findings: [finding({
+          category: 'contract',
+          title: 'Contract ambiguity',
+          observed: 'The canonical contract is ambiguous.',
+          expected: 'The contract determines one safe behavior.',
+        })],
+        verificationObservations: 'Verification cannot resolve a contract ambiguity.',
+        rationale: 'Contract defect must block rather than route to FIX.',
+        specializedReviews: {
+          security: { status: 'blocked', summary: 'Security behavior depends on the missing contract.' },
+          tests: { status: 'pass', summary: 'Existing tests execute, but cannot resolve contract intent.' },
+        },
+        completion: null,
+      },
+      now: new Date('2026-10-06T07:04:00Z'),
+    });
+    expect(blockedResult).toMatchObject({ status: 'BLOCKED', verdict: 'blocked' });
+    expect((await stepCompletionProof(blockedRepo, 'STEP-001')).complete).toBe(false);
+  }, 60_000);
+
   it('does not allow model PASS prose to bypass material finding rules', async () => {
     const repo = await repositoryFixture();
     await implementedAndVerified(repo);
@@ -566,6 +619,32 @@ describe('review, verification and completion Core', () => {
       resolved: 0,
       introduced: 0,
       persisted: 1,
+    });
+
+    const regression = compareRepairSnapshots(
+      {
+        report: 'before.md',
+        verdict: 'fail',
+        contractBasis: 'sha256:' + 'a'.repeat(64),
+        verificationBasis: 'sha256:' + 'b'.repeat(64),
+        verificationStatus: 'PASS',
+        reviewedRevision: { gitHead: '1'.repeat(40), worktreeHash: null },
+        findings: [first],
+      },
+      {
+        report: 'after.md',
+        verdict: 'fail',
+        contractBasis: 'sha256:' + 'a'.repeat(64),
+        verificationBasis: 'sha256:' + 'c'.repeat(64),
+        verificationStatus: 'FAIL',
+        reviewedRevision: { gitHead: '2'.repeat(40), worktreeHash: null },
+        findings: [],
+      },
+      2,
+    );
+    expect(regression).toMatchObject({
+      reasonCode: 'REGRESSION',
+      verificationRegressed: true,
     });
   });
 
