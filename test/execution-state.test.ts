@@ -418,6 +418,39 @@ describe('ExecutionStateService', () => {
     }
   });
 
+  it('durably blocks an explicit stale resume before returning the error', async () => {
+    const { repo } = await repositoryFixture();
+    const execution = await startExecution(repo, 'STEP REVIEW STEP-001');
+    const originalBasis = execution.current.context.intentBasis;
+    await put(repo, 'docs/requirements/REQ-001-resume.md', req('Changed before explicit resume.'));
+
+    await expect(startExecution(repo, execution.rootCommand)).rejects.toMatchObject({
+      code: 'INTENT_BASIS_STALE',
+      details: {
+        remediation: 'STEP PLAN STEP-001',
+      },
+    });
+
+    const blocked = await readExecutionState(repo);
+    expect(blocked.executions).toHaveLength(1);
+    expect(blocked.executions[0]).toMatchObject({
+      executionId: execution.executionId,
+      status: 'blocked',
+      blockedBy: { reasonCode: 'INTENT_BASIS_STALE' },
+    });
+    expect(blocked.executions[0].current.context.intentBasis).toEqual(originalBasis);
+
+    await put(repo, 'docs/requirements/REQ-001-resume.md', req());
+    const next = await startExecution(repo, execution.rootCommand);
+    expect(next.executionId).not.toBe(execution.executionId);
+    const advanced = await readExecutionState(repo);
+    expect(advanced.executions).toHaveLength(1);
+    expect(advanced.executions[0].executionId).toBe(next.executionId);
+    expect(advanced.recentTerminals.some((item) =>
+      item.executionId === execution.executionId && item.status === 'blocked'
+    )).toBe(true);
+  });
+
   it('does not treat PLAN output mutation as stale intent', async () => {
     const { repo } = await repositoryFixture();
     const execution = await startExecution(repo, 'STEP PLAN STEP-001');
