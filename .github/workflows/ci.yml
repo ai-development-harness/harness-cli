@@ -37,3 +37,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify real Harness release payload
+        run: npm run release:smoke
