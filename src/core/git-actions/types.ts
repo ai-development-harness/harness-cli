@@ -50,11 +50,39 @@ export interface PullRequestRecord {
   readonly baseBranch: string;
   readonly draft: boolean;
   readonly title?: string;
+  readonly mergedAt?: string;
+}
+
+export interface GitCheckResult {
+  readonly branch: string;
+  readonly protected: boolean;
+  readonly head: GitOid | null;
+  readonly worktree: GitRepositorySnapshot;
+  readonly relation: GitRemoteRelation;
+}
+
+export interface PullRequestFinishPlan {
+  readonly schemaVersion: 1;
+  readonly action: 'pr-finish';
+  readonly pullRequestId: string;
+  readonly headBranch: string;
+  readonly mergedHeadOid: GitOid;
+  readonly returnBranch: string;
+  readonly currentBranch: string;
+  readonly remote: string;
+  readonly resumed: boolean;
+  readonly steps: readonly (
+    | { readonly operation: 'switch-return-branch'; readonly branch: string }
+    | { readonly operation: 'sync-return-branch'; readonly expectedRemoteHead: GitOid }
+    | { readonly operation: 'delete-local-pr-branch'; readonly expectedHead: GitOid }
+  )[];
+  readonly forceDeleteForbidden: true;
 }
 
 export interface GitActionPort {
   snapshot(): Promise<GitRepositorySnapshot>;
   relation(remote: string, branch: string): Promise<GitRemoteRelation>;
+  localBranch(branch: string): Promise<GitOid | null>;
   createBranch(branch: string, expectedHead: GitOid | null): Promise<void>;
   commit(input: {
     readonly branch: string;
@@ -87,6 +115,7 @@ export interface PullRequestProviderPort {
     readonly headOid: GitOid;
     readonly baseBranch: string;
   }): Promise<readonly PullRequestRecord[]>;
+  view(selector: string): Promise<PullRequestRecord>;
   create(input: {
     readonly headBranch: string;
     readonly headOid: GitOid;
