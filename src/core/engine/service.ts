@@ -19,6 +19,7 @@ import type {
   ProtocolEngineResult,
   ProtocolExecutionAdapter,
   RuntimePreconditionRequest,
+  SemanticCompletionIdentityV1,
   SemanticHandoffV1,
 } from './types.js';
 import { resolveRoot } from '../execution/index.js';
@@ -146,7 +147,7 @@ export class ProtocolEngine {
   }
 
   async completeSemantic(
-    handoff: SemanticHandoffV1,
+    handoff: SemanticCompletionIdentityV1,
     proposal: unknown,
   ): Promise<ProtocolEngineResult> {
     const rootValidation = validateCommandText(handoff.rootCommand);
