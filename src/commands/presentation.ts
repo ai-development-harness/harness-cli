@@ -84,7 +84,7 @@ export function writeJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-export function jsonSuccess<T extends Readonly<Record<string, unknown>>>(
+export function jsonSuccess<T extends object>(
   fields: T,
 ): Readonly<{ schemaVersion: 1; ok: true } & T> {
   return {
