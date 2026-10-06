@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import {
   releaseInstallCommand,
@@ -31,6 +32,14 @@ program
   .option('--json', 'Write a machine-readable JSON result')
   .action((options: { json?: boolean }) =>
     setupCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+program
+  .command('config')
+  .description('Show the effective read-only Harness project configuration')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    configCommand(process.cwd(), { json: options.json ?? false }),
   );
 
 program
