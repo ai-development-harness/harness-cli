@@ -1,3 +1,4 @@
+import { reviewReports } from './history.js';
 import type { ReviewFinding } from './types.js';
 
 const SEVERITY_RANK: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
@@ -90,4 +91,35 @@ export function compareRepairSnapshots(
     reasonCode: stop,
     message,
   };
+}
+
+
+export async function repairCycleDecision(
+  projectRoot: string,
+  stepId: string,
+  cycle: number,
+): Promise<Readonly<Record<string, unknown>> | null> {
+  const reports = await reviewReports(projectRoot, stepId);
+  if (reports.length < 2) return null;
+  const [before, after] = reports.slice(-2);
+  const snapshot = (report: typeof before): RepairSnapshot => ({
+    report: report.relativePath,
+    verdict: report.verdict,
+    contractBasis:
+      typeof report.document.frontmatter.contract_basis === 'string'
+        ? report.document.frontmatter.contract_basis
+        : null,
+    verificationBasis:
+      typeof report.document.frontmatter.verification_basis === 'string'
+        ? report.document.frontmatter.verification_basis
+        : null,
+    verificationStatus:
+      typeof report.document.frontmatter.verification_status === 'string'
+        ? report.document.frontmatter.verification_status
+        : null,
+    reviewedRevision: report.document.frontmatter.reviewed_revision,
+    findings: report.findings,
+  });
+  const result = compareRepairSnapshots(snapshot(before), snapshot(after), cycle);
+  return result.reasonCode ? result : null;
 }
