@@ -77,6 +77,12 @@ class FakeGit implements GitActionPort {
     return { ...this.relationValue, remote, branch };
   }
 
+  async localBranch(branch: string): Promise<string | null> {
+    if (branch === this.snapshotValue.branch) return this.snapshotValue.head;
+    if (branch === 'main') return 'e'.repeat(40);
+    return null;
+  }
+
   async createBranch(branch: string): Promise<void> {
     this.snapshotValue = { ...this.snapshotValue, branch };
   }
@@ -124,6 +130,12 @@ class FakeProvider implements PullRequestProviderPort {
     );
   }
 
+  async view(selector: string): Promise<PullRequestRecord> {
+    const item = this.records.find((record) => record.id === selector || record.headBranch === selector);
+    if (!item) throw new Error('Pull Request not found');
+    return item;
+  }
+
   async create(input: { readonly headBranch: string; readonly headOid: string; readonly baseBranch: string; readonly title: string; readonly body: string; readonly draft: boolean }): Promise<void> {
     this.records.push({
       id: '42',
@@ -144,6 +156,71 @@ afterEach(async () => {
 });
 
 describe('Git action Core', () => {
+  it('reports deterministic Git check facts without mutation', async () => {
+    const root = await temporaryRepository();
+    const port = new FakeGit();
+    const service = new GitActionService({ projectRoot: root, git: port, policy });
+
+    await expect(service.check()).resolves.toMatchObject({
+      branch: 'feature/example',
+      protected: false,
+      head: 'a'.repeat(40),
+      relation: {
+        remote: 'origin',
+        branch: 'feature/example',
+      },
+    });
+  });
+
+  it('builds a resumable PR finish plan only from provider-verified merged state', async () => {
+    const root = await temporaryRepository();
+    const port = new FakeGit();
+    port.snapshotValue = {
+      ...port.snapshotValue,
+      branch: 'feature/example',
+      head: 'a'.repeat(40),
+    };
+    port.relationValue = {
+      remote: 'origin',
+      branch: 'main',
+      remoteHead: 'f'.repeat(40),
+      ahead: 0,
+      behind: 1,
+      upstream: 'origin/main',
+    };
+    const provider = new FakeProvider();
+    provider.records.push({
+      id: '77',
+      url: 'https://example.invalid/pull/77',
+      state: 'MERGED',
+      headBranch: 'feature/example',
+      headOid: 'a'.repeat(40),
+      baseBranch: 'main',
+      draft: false,
+      mergedAt: '2026-10-06T08:00:00Z',
+    });
+    const service = new GitActionService({
+      projectRoot: root,
+      git: port,
+      pullRequests: provider,
+      policy,
+    });
+
+    await expect(service.preflightPullRequestFinish('77')).resolves.toMatchObject({
+      action: 'pr-finish',
+      pullRequestId: '77',
+      headBranch: 'feature/example',
+      returnBranch: 'main',
+      resumed: false,
+      forceDeleteForbidden: true,
+      steps: [
+        { operation: 'switch-return-branch', branch: 'main' },
+        { operation: 'sync-return-branch', expectedRemoteHead: 'f'.repeat(40) },
+        { operation: 'delete-local-pr-branch', expectedHead: 'a'.repeat(40) },
+      ],
+    });
+  });
+
   it('requires an explicit safe branch before committing from a protected branch', async () => {
     const root = await temporaryRepository();
     const port = new FakeGit();
