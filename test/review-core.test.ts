@@ -224,7 +224,7 @@ Synthetic review fixture.
 
 ## Verification
 
-- command: `node -e "process.exit(0)"`
+- command: \`node -e "process.exit(0)"\`
 
 ## Deliverables
 
