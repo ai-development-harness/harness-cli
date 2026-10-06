@@ -193,7 +193,7 @@ Stage 4 **не** включает AI runtime adapters или запуск Codex/
 
 ## 5. Stage 5 — завершить deterministic CLI/Core surface
 
-**Следующий этап.**
+**Статус: завершён в issues #67–#74.**
 
 Цель: предоставить стабильные human-readable и machine-readable команды для всей deterministic функциональности, уже принадлежащей Core.
 
@@ -224,7 +224,7 @@ harness git check
 3. вернуть factual semantic proposal/result;
 4. продолжить существующее execution после interruption.
 
-Presentation CLI не должен дублировать protocol/state semantics Core.
+Presentation CLI не дублирует protocol/state semantics Core. Stage 5 завершён после введения общего presentation contract, read-only config/project/STEP/Git surfaces, UpdateService wrappers и pinned release-owned external caller boundary. Полная parity-матрица публичного CLI зафиксирована в `docs/STAGE5_PARITY.md` и regression-тесте `test/stage5-cli-matrix.test.ts`.
 
 ### Не входит в Stage 5
 
@@ -332,9 +332,9 @@ Stage 2  Immutable Release Store              ✅ foundation
 Stage 3  Legacy → thin migration              ✅
 Stage 4  Release-owned Core                   ✅
          ↓
-Stage 5  Deterministic CLI/Core surface       ← NEXT
+Stage 5  Deterministic CLI/Core surface       ✅
          ↓
-Stage 6  Thin-project bootstrap contract
+Stage 6  Thin-project bootstrap contract       ← NEXT
          ↓
 Stage 7  Local Integration API
          ↓

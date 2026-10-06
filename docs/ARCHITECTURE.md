@@ -102,8 +102,8 @@ CLI не должен содержать вторую реализацию valid
 - `doctor`;
 - `validate`;
 - `status`;
-- будущие `update` и `migrate`;
-- будущие protocol-facing CLI operations.
+- `update` и `migrate`;
+- protocol-facing machine transport для external caller.
 
 Application service координирует Core-компоненты, но не должен содержать сложную доменную механику.
 
@@ -315,9 +315,7 @@ Harness Core содержит canonical protocol model в `src/core/protocol/`.
 
 Модуль runtime-neutral и не зависит от Commander.
 
-Execution-state mutations, semantic handoff coordination, Git side effects и окончательный dispatcher остаются за следующими Stage 4 слоями. В частности, issue #32 переносит parser/CTS authority, но не реализует `ProtocolEngine` execution semantics целиком.
-
-После этого cutover template `.harness/command-transitions.json`, Python parser и generated reasoning projection являются compatibility reference v0.10.4, а не активным source of truth.
+Execution-state mutations и semantic handoff coordination теперь принадлежат release-owned `ProtocolEngine`; Git side effects остаются за отдельными Core Git services. Template `.harness/command-transitions.json`, Python parser и generated reasoning projection являются compatibility reference v0.10.4, а не активным source of truth.
 
 Связанные требования: `CLI-REQ-140`–`CLI-REQ-144`, `CLI-REQ-211`, `CLI-REQ-240`, `CLI-REQ-241`.
 
@@ -333,6 +331,8 @@ Harness Core может вернуть semantic handoff внешнему caller,
 - возвращает proposal/result через runtime-neutral contract.
 
 Canonical state mutations, transition commits, deterministic writers и Git safety остаются Core-owned.
+
+Stage 5 public transport — `harness protocol machine`: один bounded JSON request из stdin и один Host API JSON response в stdout. Transport всегда разрешает exact project-pinned immutable release через `loadPinnedCore()`; semantic completion принимает только minimal execution identity + untrusted proposal и повторно сверяет active Git-private execution до commit.
 
 ### 4.9 Integration API Boundary
 
@@ -361,7 +361,7 @@ Transport (library API, child-process protocol, MCP-like interface и т. п.) �
 | Project-specific skills | repository | да | проект |
 | Bootstrap `AGENTS.md` / `CLAUDE.md` | repository root | да | проект + Harness bootstrap contract |
 | Execution locks/state | Git private path `ai-harness` | нет | Harness Core |
-| Runtime session metadata | Git private path `ai-harness` | нет | Harness Core / adapter |
+| Execution state / semantic handoff identity | Git private path `ai-harness` | нет | Harness Core |
 | Temporary migration state | Git private path `ai-harness` | нет | migration engine |
 | Installed Harness releases | global data path | нет | Harness Distribution |
 | Global cache | global cache path | нет | Harness CLI/Core |
@@ -512,27 +512,22 @@ Ports v1:
 
 ### 7.7 ProtocolEngine
 
-Protocol layer разделён на уже реализованный deterministic command contract и будущий execution dispatcher.
+Protocol layer содержит единый deterministic command contract и реализованный release-owned execution dispatcher.
 
-Уже реализовано:
+Реализовано:
 
 - `PROTOCOL_MODEL` — единый source of truth command surface;
 - `validateProtocolModel()` — closed schema/integrity gate;
 - `parseCanonicalCommand()` — parser одной canonical command;
 - `validateCommandText()` — structural validation всей chain до dispatch;
-- `canonicalCommands()`, `helpCatalog()`, `reasoningProjection()`, `transitionRows()` — derived read models.
-
-Критический инвариант: отсутствующий CTS edge означает запрещённый переход. Parser не восстанавливает переходы эвристически.
-
-Будущий `ProtocolEngine` поверх этой модели добавляет:
-
+- `canonicalCommands()`, `helpCatalog()`, `reasoningProjection()`, `transitionRows()` — derived read models;
 - runtime-precondition evaluation;
 - execution state transitions;
 - semantic proposal handoff;
-- deterministic commits;
+- deterministic commit boundary;
 - resume/orchestration behavior.
 
-Semantic agent work находится за пределами deterministic parsing/CTS validation.
+Критический инвариант: отсутствующий CTS edge означает запрещённый переход. Parser не восстанавливает переходы эвристически. Semantic agent work находится за пределами deterministic parsing/CTS validation и возвращается только как untrusted proposal.
 
 ### 7.8 ExternalCallerBoundary
 
@@ -734,27 +729,26 @@ Core/CLI не отвечает за:
 
 ## 14. Текущая реализация и целевая архитектура
 
-Существующий код содержит bootstrap и первый release-owned execution boundary:
+После Stage 5 основные границы уже представлены в коде:
 
 ```text
 src/cli.ts
 src/commands/*
 src/core/config.ts
-src/core/git.ts
-src/core/paths.ts
 src/core/releases/*
-src/core/host/
-  contract.ts
-  errors.ts
-  loader.ts
-  index.ts
+src/core/host/*
+src/core/protocol/*
+src/core/engine/*
+src/core/execution/*
+src/core/project/*
+src/core/git-actions/*
+src/core/migration/*
+src/core/update/*
 ```
 
-`src/core/host` является Host API v1 implementation: он разрешает exact project pin, проверяет compatibility/integrity и загружает declared Core entrypoint. Сам canonical command/protocol behavior будет переноситься в release-owned Core следующими Stage 4 issues.
+`src/core/host` реализует Host API v1: разрешает exact project pin, проверяет compatibility/integrity и загружает declared release-owned Core entrypoint. Canonical protocol behavior, execution state и semantic handoff coordination находятся в release-owned Core. Commander остаётся presentation layer и не владеет отдельной state machine.
 
-Это допустимо для текущего этапа.
-
-При росте функциональности границы из этого документа должны появляться в коде постепенно. Не требуется преждевременно создавать десятки пустых modules/packages.
+При росте функциональности границы из этого документа должны сохраняться по ответственности. Не требуется преждевременно создавать десятки пустых modules/packages.
 
 Основное правило: новая логика размещается по ответственности, а не по удобству конкретной CLI command.
 
@@ -765,8 +759,8 @@ src/core/host/
 - наличии обязательного GUI;
 - конкретном transport Local Integration API;
 - конкретной технологии standalone packaging;
-- transport/UX конкретного внешнего caller поверх machine-readable Harness boundary;
-- финальном полном CLI syntax Protocol Engine;
+- transport Local Integration API Stage 7 для editor/UI clients;
+- финальном полном CLI syntax Protocol Engine сверх Stage 5 machine transport;
 - точном physical package split внутри repository.
 
 Эти решения должны приниматься отдельными requirements/ADR/design tasks при появлении достаточного контекста.
