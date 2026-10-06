@@ -1,3 +1,4 @@
+import { DurableArtifactError, createDurableArtifact } from '../artifacts/index.js';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -58,4 +59,32 @@ export function replaceH2Section(text: string, title: string, value: string): st
   if (start < 0) throw new Error("missing section '## " + title + "'");
   const replacement = ['## ' + title, '', value.trim(), ''];
   return [...lines.slice(0, start), ...replacement, ...lines.slice(end)].join('\n').replace(/\n+$/, '\n');
+}
+
+
+export async function createTimestampedReport(
+  projectRoot: string,
+  directory: string,
+  prefix: string,
+  contentFactory: (createdAt: string) => string,
+  now = new Date(),
+): Promise<Readonly<{ path: string; createdAt: string }>> {
+  let instant = new Date(Math.floor(now.getTime() / 1000) * 1000);
+  while (true) {
+    const createdAt = instant.toISOString().replace('.000Z', 'Z');
+    const stamp = createdAt
+      .replace(/[-:]/g, '')
+      .replace('.000Z', 'Z');
+    const target = path.join(directory, prefix + stamp + '.md');
+    try {
+      await createDurableArtifact(projectRoot, target, contentFactory(createdAt));
+      return { path: target, createdAt };
+    } catch (error) {
+      if (error instanceof DurableArtifactError && error.code === 'DURABLE_ARTIFACT_EXISTS') {
+        instant = new Date(instant.getTime() + 1000);
+        continue;
+      }
+      throw error;
+    }
+  }
 }
