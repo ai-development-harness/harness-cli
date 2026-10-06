@@ -1,23 +1,13 @@
 import path from 'node:path';
 import { isReleaseError } from '../core/releases/errors.js';
 import { ReleaseStore } from '../core/releases/store.js';
-
-function writeJson(value: unknown): void {
-  console.log(JSON.stringify(value, null, 2));
-}
+import { jsonFailure, jsonSuccess, setCliExitCode, writeJson } from './presentation.js';
 
 function handleReleaseCommandError(error: unknown, json: boolean): boolean {
   if (!isReleaseError(error) || !json) return false;
 
-  writeJson({
-    ok: false,
-    error: {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-    },
-  });
-  process.exitCode = 1;
+  writeJson(jsonFailure('failure', error));
+  setCliExitCode('failure');
   return true;
 }
 
@@ -28,14 +18,13 @@ export async function releaseInstallCommand(
 ): Promise<void> {
   try {
     const result = await new ReleaseStore().installFromDirectory(path.resolve(cwd, source));
-    const output = {
-      ok: true,
+    const output = jsonSuccess({
       release: result.release,
       digest: result.digest,
       root: result.root,
       reused: result.reused,
       installedAt: result.installedAt,
-    };
+    });
 
     if (json) {
       writeJson(output);
@@ -54,7 +43,7 @@ export async function releaseListCommand(json = false): Promise<void> {
   try {
     const releases = await new ReleaseStore().list();
     if (json) {
-      writeJson({ ok: true, releases });
+      writeJson(jsonSuccess({ releases }));
       return;
     }
 
