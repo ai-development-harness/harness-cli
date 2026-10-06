@@ -81,7 +81,23 @@ function parseNameStatus(raw: Buffer): string[] {
   return paths;
 }
 
-async function worktreeIdentity(projectRoot: string, relativePath: string): Promise<Readonly<Record<string, unknown>>> {
+function normalizeStepLifecycle(bytes: Buffer): Buffer {
+  const text = bytes.toString('utf8').replace(/\r\n/g, '\n');
+  if (!text.startsWith('---\n')) return bytes;
+  const end = text.indexOf('\n---\n', 4);
+  if (end < 0) return bytes;
+  const head = text.slice(0, end + 1).replace(
+    /(^|\n)status:\s*[^\n]+/,
+    '$1status: __HARNESS_LIFECYCLE__',
+  );
+  return Buffer.from(head + text.slice(end + 1), 'utf8');
+}
+
+async function worktreeIdentity(
+  projectRoot: string,
+  relativePath: string,
+  normalizeStepStatus = false,
+): Promise<Readonly<Record<string, unknown>>> {
   const target = path.join(projectRoot, ...relativePath.split('/'));
   try {
     const info = await lstat(target);
@@ -90,7 +106,10 @@ async function worktreeIdentity(projectRoot: string, relativePath: string): Prom
       return {
         kind: 'file',
         mode: (info.mode & 0o111) !== 0 ? '100755' : '100644',
-        bytes: (await readFile(target)).toString('base64'),
+        bytes: (normalizeStepStatus
+          ? normalizeStepLifecycle(await readFile(target))
+          : await readFile(target)
+        ).toString('base64'),
       };
     }
     if (info.isDirectory()) return { kind: 'directory' };
@@ -112,12 +131,18 @@ async function indexIdentity(projectRoot: string, relativePath: string): Promise
 
 export async function repositoryRevision(
   projectRoot: string,
-  options: { readonly ignoredPaths?: ReadonlySet<string> } = {},
+  options: {
+    readonly ignoredPaths?: ReadonlySet<string>;
+    readonly normalizeStepStatusPaths?: ReadonlySet<string>;
+  } = {},
 ): Promise<RepositoryRevision> {
   const head = await git(projectRoot, ['rev-parse', 'HEAD'], { allowFailure: true });
   const gitHead = head.code === 0 ? head.stdout.toString('utf8').trim() || null : null;
   const status = await git(projectRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
   const ignored = new Set([...(options.ignoredPaths ?? [])].map((item) => portable(item)));
+  const normalizedStepStatus = new Set(
+    [...(options.normalizeStepStatusPaths ?? [])].map((item) => portable(item)),
+  );
   const entries = parseStatus(status.stdout).filter((entry) => {
     const destinationIgnored = ignored.has(portable(entry.path));
     const sourceIgnored = entry.sourcePath === null || ignored.has(portable(entry.sourcePath));
@@ -134,7 +159,7 @@ export async function repositoryRevision(
       path: rel,
       sourcePath: entry.sourcePath ? portable(entry.sourcePath) : null,
       index: await indexIdentity(projectRoot, rel),
-      worktree: await worktreeIdentity(projectRoot, rel),
+      worktree: await worktreeIdentity(projectRoot, rel, normalizedStepStatus.has(rel)),
     });
   }
   return { gitHead, worktreeHash: stableHash(material) };
