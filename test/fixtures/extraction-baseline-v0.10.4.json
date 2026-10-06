@@ -219,11 +219,6 @@
       "id": "THIN-002",
       "area": "harness-update",
       "description": "Repository-embedded three-way updater is historical reference only; thin architecture updates verified release pins and coordinates project migration."
-    },
-    {
-      "id": "THIN-003",
-      "area": "runtime-adapters",
-      "description": "RuntimeAdapter contract is captured, but concrete Codex/Claude adapters are deferred beyond Stage 4."
     }
   ],
   "commandModel": {
@@ -745,53 +740,6 @@
     ],
     "immutabilityRule": "existing durable report path cannot be overwritten; each review creates a new revision/basis-bound artifact"
   },
-  "runtimeAdapterContract": {
-    "schemaVersion": 1,
-    "contractId": "harness.runtime-adapter",
-    "methods": [
-      "getIdentity",
-      "getCapabilities",
-      "getAccount",
-      "start",
-      "resume",
-      "cancel",
-      "status"
-    ],
-    "capabilities": [
-      "runtimeIdentity",
-      "authenticatedAccount",
-      "modelEffort",
-      "interactiveInput",
-      "streaming",
-      "resume",
-      "cancel",
-      "subagents",
-      "structuredOutput",
-      "toolMcp",
-      "sessionExecutionIds"
-    ],
-    "events": [
-      "run.started",
-      "model.message.delta",
-      "model.message.completed",
-      "tool.started",
-      "tool.completed",
-      "input.required",
-      "auth.required",
-      "run.interrupted",
-      "run.completed",
-      "run.failed"
-    ],
-    "supportStates": [
-      "native",
-      "synthesized",
-      "unsupported"
-    ],
-    "adapters": [
-      "codex",
-      "claude"
-    ]
-  },
   "selfTests": {
     "count": 42,
     "discoveryRule": ".harness/tools/*-self-test.py",
@@ -1081,24 +1029,6 @@
         "thin UPDATE APPLY advances a verified release pin and coordinates project-schema migration without repopulating .harness/tools"
       ],
       "cutoverCondition": "Embedded three-way repository updater is not copied into Core; thin UpdateService becomes the only active update implementation."
-    },
-    {
-      "id": "PARITY-RUNTIME-011",
-      "area": "runtime-adapter-contract",
-      "behavior": "contract-only-deferred-implementation",
-      "plannedIssue": null,
-      "templateSources": [
-        ".harness/runtime-adapter-contract.json"
-      ],
-      "targetCoreModule": "core/runtime/contract",
-      "sourceTests": [
-        "runtime-adapter-contract-self-test.py"
-      ],
-      "assertions": [
-        "runtime adapter methods, capabilities, events and explicit support states remain a stable contract",
-        "Codex/Claude concrete adapter implementations are intentionally deferred beyond Stage 4"
-      ],
-      "cutoverCondition": "Stage 4 may package the runtime-neutral contract, but concrete RuntimeAdapter implementations are not required for source-of-truth cutover."
     },
     {
       "id": "PARITY-DISPATCH-012",
