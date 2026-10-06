@@ -287,12 +287,19 @@ describe('Git action Core', () => {
 
   it('redacts common provider credential forms from typed provider diagnostics', () => {
     const value = redactProviderMessage(
-      'Authorization: Bearer abc123 token=my-secret access_token=query-secret ghp_ABC123',
+      'Authorization: Bearer abc123 token=my-secret access_token=query-secret password=p4ss secret=s3cr3t ghp_ABC123 github_pat_LONGVALUE',
     );
-    expect(value).not.toContain('abc123');
-    expect(value).not.toContain('my-secret');
-    expect(value).not.toContain('query-secret');
-    expect(value).not.toContain('ghp_ABC123');
+    for (const secret of [
+      'abc123',
+      'my-secret',
+      'query-secret',
+      'p4ss',
+      's3cr3t',
+      'ghp_ABC123',
+      'github_pat_LONGVALUE',
+    ]) {
+      expect(value).not.toContain(secret);
+    }
     expect(value).toContain('[REDACTED]');
   });
 
