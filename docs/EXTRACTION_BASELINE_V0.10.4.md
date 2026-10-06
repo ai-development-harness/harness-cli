@@ -26,9 +26,8 @@ Stage 4 переносит semantics Harness из template repository в уст�
 - verification/review/completion/convergence;
 - Git safety и side-effect recovery;
 - update semantics;
-- runtime-adapter contract.
 
-Последующие extraction PR должны ссылаться на `PARITY-...` case IDs из fixture.
+Последующие extraction PR должны ссылаться на `PARITY-...` case IDs из fixture. Runtime-adapter artifacts, существовавшие в upstream snapshot v0.10.4, остаются только historical snapshot evidence и **не являются extraction target или ответственностью `harness-cli`**.
 
 ## Snapshot summary
 
@@ -100,7 +99,6 @@ Immutable implementation/planning/INIT reports используют verdict `pas
 | `PARITY-REVIEW-008` | #37 | `core/review/convergence` | preserve |
 | `PARITY-GIT-009` | #38 | `core/git/safety-actions` | preserve |
 | `PARITY-UPDATE-010` | #39 | `core/update/thin-update-service` | intentional architecture change |
-| `PARITY-RUNTIME-011` | Stage 6 | `core/runtime/contract` | contract only; implementation deferred |
 | `PARITY-DISPATCH-012` | #40 | `core/protocol/dispatcher` | preserve |
 
 Каждый case в JSON содержит:
@@ -141,10 +139,6 @@ Execution/recovery semantics сохраняются, но storage перенос
 ### THIN-002 — Harness Update
 
 Legacy `harness_update.py` остаётся historical compatibility reference. Новый Core не должен копировать repository-embedded updater; `HARNESS UPDATE CHECK/APPLY` работает через verified release pin, compatibility и migration coordination.
-
-### THIN-003 — RuntimeAdapter implementations
-
-Contract Codex/Claude зафиксирован в baseline, но concrete adapters не входят в Stage 4 и остаются следующим roadmap stage.
 
 ## Source-of-truth cutover rule
 

@@ -68,12 +68,6 @@ const baseline = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
     };
     invariants: string[];
   };
-  runtimeAdapterContract: {
-    methods: string[];
-    capabilities: string[];
-    events: string[];
-    adapters: string[];
-  };
   selfTests: { count: number; discoveryRule: string; files: string[] };
   parityCases: ParityCase[];
   criticalNegativeCases: Array<{ id: string; sourceTests: string[] }>;
@@ -230,9 +224,6 @@ describe('Harness v0.10.4 extraction baseline', () => {
     expect(baseline.parityCases.find((item) => item.id === 'PARITY-UPDATE-010')?.behavior).toBe(
       'intentional-architecture-change',
     );
-    expect(
-      baseline.parityCases.find((item) => item.id === 'PARITY-RUNTIME-011')?.behavior,
-    ).toBe('contract-only-deferred-implementation');
   });
 
   it('pins critical negative cases to existing upstream synthetic tests', () => {
@@ -254,17 +245,6 @@ describe('Harness v0.10.4 extraction baseline', () => {
     expect(baseline.intentionalThinArchitectureChanges.map((item) => item.id)).toEqual([
       'THIN-001',
       'THIN-002',
-      'THIN-003',
-    ]);
-    expect(baseline.runtimeAdapterContract.adapters).toEqual(['codex', 'claude']);
-    expect(baseline.runtimeAdapterContract.methods).toEqual([
-      'getIdentity',
-      'getCapabilities',
-      'getAccount',
-      'start',
-      'resume',
-      'cancel',
-      'status',
     ]);
   });
 });

@@ -6,7 +6,7 @@
 
 ## Архитектурная граница
 
-Harness CLI **не является обязательной терминальной обёрткой над Claude Code или Codex**.
+Harness CLI **никогда не запускает и не управляет Claude Code, Codex или другим AI runtime**. AI runtime является внешним caller и при необходимости сам вызывает deterministic Harness interfaces.
 
 Интерактивная сессия должна по возможности оставаться под управлением самой среды выполнения, чтобы штатно работали:
 
@@ -17,33 +17,24 @@ Harness CLI **не является обязательной терминаль�
 - аутентификация;
 - TTY-взаимодействие.
 
-CLI отвечает за установку, конфигурацию, детерминированную валидацию, миграции и локальные сервисы управляющего слоя.
+CLI отвечает за установку, конфигурацию, детерминированную валидацию, миграции, release management и machine-readable Core boundaries.
 
 ```text
-Claude Code / Codex
+Claude Code / Codex / другой внешний caller
         │
-        │ команды протокола Harness
+        │ canonical command / factual proposal
         ▼
-интеграционный слой / локальный API Harness
-        │
-        ▼
-Harness Core
-  ├─ протокол
-  ├─ валидаторы
-  ├─ машина состояний
-  └─ проектные сервисы
-
-Harness CLI
-  ├─ setup
-  ├─ update
-  ├─ doctor
-  ├─ validate
-  └─ migrations
+Harness CLI / release-owned Core
+  ├─ protocol + execution state
+  ├─ validators / deterministic gates
+  ├─ project read models
+  ├─ Git safety
+  └─ release / migration / update services
 ```
 
 ## Текущий объём
 
-Репозиторий намеренно начинается с небольшого среза, который пока не запускает AI runtime:
+CLI не запускает AI runtime. Текущий deterministic surface включает:
 
 - `harness setup` — подготовить существующий Git-репозиторий для Harness;
 - `harness doctor` — проверить окружение и ожидаемую структуру проекта;
@@ -217,13 +208,5 @@ protocol:
 Контракт миграции legacy repository-embedded проектов находится в [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 Формат Harness Distribution и immutable release находится в [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
-
-Текущая последовательность этапа формализации:
-
-1. продуктовые требования — `docs/PRODUCT_REQUIREMENTS.md`;
-2. архитектурный контракт — `docs/ARCHITECTURE.md`;
-3. контракт миграции — `docs/MIGRATION.md`;
-4. формат Harness Distribution — `docs/DISTRIBUTION.md`;
-5. после этого — реализация Release Store и resolver закреплённой версии.
 
 План намеренно **не предполагает обязательного существования GUI**. CLI/Core должен предоставлять переиспользуемые машиночитаемые интерфейсы для редакторских интеграций и других внешних инструментов, не делая какой-либо конкретный клиент обязательной частью архитектуры.
