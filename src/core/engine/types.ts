@@ -95,6 +95,10 @@ export interface ProtocolEnginePorts {
 
 export interface ProtocolExecutionAdapter {
   readonly startExecution: (projectRoot: string, command: string) => Promise<ExecutionRecord>;
+  readonly currentExecution: (
+    projectRoot: string,
+    rootCommand: string,
+  ) => Promise<ExecutionRecord | null>;
   readonly beginCommand: (
     projectRoot: string,
     rootCommand: string,
