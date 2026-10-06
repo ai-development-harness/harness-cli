@@ -16,6 +16,12 @@ import {
 } from './commands/migrate.js';
 import { setupCommand } from './commands/setup.js';
 import { statusCommand } from './commands/status.js';
+import {
+  projectStatusCommand,
+  stepListCommand,
+  stepNextCommand,
+  stepShowCommand,
+} from './commands/project-read.js';
 import { validateCommand } from './commands/validate.js';
 import { updateApplyCommand, updateCheckCommand } from './commands/update.js';
 import { getPackageVersion } from './core/package.js';
@@ -65,6 +71,47 @@ program
   .option('--json', 'Write a machine-readable JSON result')
   .action((options: { json?: boolean }) =>
     statusCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+const project = program
+  .command('project')
+  .description('Read deterministic project state without mutating project artifacts');
+
+project
+  .command('status')
+  .description('Show deterministic project read-model status')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    projectStatusCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+const step = program
+  .command('step')
+  .description('Read canonical STEP state');
+
+step
+  .command('list')
+  .description('List canonical STEP artifacts and deterministic status facts')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    stepListCommand(process.cwd(), { json: options.json ?? false }),
+  );
+
+step
+  .command('show')
+  .description('Show one canonical STEP by STEP-NNN or NNN target')
+  .argument('<step-id>', 'STEP target, for example STEP-024 or 024')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((stepId: string, options: { json?: boolean }) =>
+    stepShowCommand(process.cwd(), stepId, { json: options.json ?? false }),
+  );
+
+step
+  .command('next')
+  .description('Recommend the next deterministic STEP command')
+  .option('--json', 'Write a machine-readable JSON result')
+  .action((options: { json?: boolean }) =>
+    stepNextCommand(process.cwd(), { json: options.json ?? false }),
   );
 
 const update = program
