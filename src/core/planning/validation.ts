@@ -19,7 +19,7 @@ function strings(value: unknown): string[] {
 }
 
 function unresolvedPlaceholder(value: string): boolean {
-  return /(?mi)^\s*(?:[-*]\s*)?(?:TBD|TODO|\?\?\?)\s*$/.test(value);
+  return /^\s*(?:[-*]\s*)?(?:TBD|TODO|\?\?\?)\s*$/mi.test(value);
 }
 
 export interface PlanningValidationResult {
