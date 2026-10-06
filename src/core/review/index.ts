@@ -58,6 +58,7 @@ export {
   verificationSubjectRevision,
   writeVerificationEvidence,
 } from './verification.js';
+export { commitStepPlan } from './plan-writer.js';
 export { commitStepReview } from './writer.js';
 export type {
   FindingCategory,
