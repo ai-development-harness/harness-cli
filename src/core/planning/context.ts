@@ -8,6 +8,7 @@ import { resolvePortablePathWithinBoundary } from '../path-boundary.js';
 import { activePrincipleContextCandidates } from './principles.js';
 import { implementationPlanStepCount, normalizeExecutionGroups } from './execution-groups.js';
 import { planContentHash, planningContextBasis } from './contracts.js';
+import { implementationPrerequisiteFailures } from './prerequisites.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -280,6 +281,18 @@ export async function buildStepContext(
       contextBasis: await planningContextBasis(projectRoot, stepId),
       planContentHash: await planContentHash(projectRoot, stepId),
       dependencyCompletionRequired: false,
+    };
+  } else if (phase === 'implement') {
+    const failures = await implementationPrerequisiteFailures(projectRoot, stepId);
+    result.deterministic = {
+      implementPrerequisites: {
+        status: failures.length === 0 ? 'PASS' : 'BLOCKED',
+        failures,
+      },
+    };
+  } else {
+    result.deterministic = {
+      reviewTarget: await repositoryRevision(projectRoot),
     };
   }
   return result;
