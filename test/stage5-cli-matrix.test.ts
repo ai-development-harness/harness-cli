@@ -52,16 +52,11 @@ async function help(args: readonly string[]): Promise<string> {
 }
 
 describe('Stage 5 public CLI parity matrix', () => {
-  it('keeps every Stage 5 command registered and discoverable', async () => {
+  it('keeps every Stage 5 command discoverable with its structured automation mode', async () => {
     for (const item of STAGE5_SURFACE) {
       const output = await help(item.args);
       expect(output, item.args.join(' ')).toContain('Usage: harness');
-    }
-  });
 
-  it('keeps a structured automation mode for every Stage 5 surface', async () => {
-    for (const item of STAGE5_SURFACE) {
-      const output = await help(item.args);
       if (item.structured === 'json-option') {
         expect(output, item.args.join(' ')).toContain('--json');
       } else {
