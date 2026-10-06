@@ -96,3 +96,20 @@ Commit postconditions must match the planned branch and the object identity retu
 ## Concurrency
 
 All mutating operations use the shared Git-private `CoreWriteLock`, so Git actions serialize with other Core writers in the same worktree.
+
+
+## Stage 5 read-only Git check
+
+`harness git check` exposes the Core Git safety/preflight model without crossing a mutation boundary.
+
+The command:
+
+- reads the attached branch, exact HEAD, staged/unstaged/untracked paths and locally known remote-tracking relation;
+- reports the release-owned policy inputs used by Core (protected branches, push remote, PR base and sync mode);
+- evaluates Core preconditions for commit, push, Pull Request and sync, returning `READY` or typed `BLOCKED` diagnostics;
+- reports factual observations such as dirty worktree, unpublished branch, divergence and execution from the configured PR base branch;
+- does **not** fetch remotes, create/switch branches, commit, push, merge, create PRs or write side-effect checkpoints.
+
+The infrastructure adapter passed to `GitActionService` is deliberately read-only: all mutation methods fail closed with `READ_ONLY_ADAPTER`. This prevents accidental side effects even if the CLI wrapper is changed incorrectly later.
+
+The release-owned default policy is extracted from the v0.10.4 `.harness/git-policy.toml` baseline. Thin projects therefore do not need to carry a second repository-owned copy of common Git safety policy.
