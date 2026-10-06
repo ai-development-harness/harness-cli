@@ -10,11 +10,13 @@ export {
 export type {
   GitActionPort,
   GitActionResult,
+  GitCheckResult,
   GitMutationPlan,
   GitOid,
   GitRemoteRelation,
   GitRepositorySnapshot,
   GitWorkflowPolicy,
+  PullRequestFinishPlan,
   PullRequestProviderPort,
   PullRequestRecord,
   SideEffectCheckpoint,
