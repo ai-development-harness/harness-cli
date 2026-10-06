@@ -88,7 +88,6 @@ Digest идентифицирует конкретное содержимое re
 Опциональные компоненты:
 
 ```text
-adapters/
 migrations/
 fixtures/
 ```
@@ -149,13 +148,7 @@ Project-specific и third-party skills сюда не относятся.
 
 Документация release-owned protocol/Core, которая нужна для runtime integration, diagnostics или разработчикам.
 
-### 4.7 `adapters/`
-
-Опциональные runtime-specific assets или implementation adapters.
-
-Формат v1 не требует наличия adapters до появления принятого Runtime Adapter Contract.
-
-### 4.8 `migrations/`
+### 4.7 `migrations/`
 
 Опциональные release-owned migration definitions/assets.
 
@@ -327,13 +320,11 @@ CLI может использовать release только если его п�
 
 Фактическая migration всё равно выполняется через Migration Engine, а не автоматически при resolution.
 
-### 8.4 Runtime compatibility
+### 8.4 External caller compatibility
 
-Формат v1 намеренно не фиксирует обязательные versions Codex/Claude.
+Harness Distribution не содержит AI runtime implementation и не фиксирует обязательные версии Codex/Claude.
 
-Runtime capability/version constraints должны появиться после принятия Runtime Adapter Contract.
-
-Если такие constraints позже войдут в release metadata, они не должны менять identity existing format v1 без совместимого extension mechanism.
+AI runtime является внешним caller и взаимодействует с release-owned Core через stable machine-readable contracts. Его process lifecycle, auth, model/effort и capabilities не являются частью release compatibility metadata.
 
 ## 9. Components
 
@@ -364,7 +355,6 @@ Runtime capability/version constraints должны появиться посл�
 
 Опциональные predefined IDs:
 
-- `adapters`;
 - `migrations`;
 - `fixtures`.
 
@@ -956,15 +946,9 @@ V1 parser должен fail-closed на неизвестные required semantic
     { "id": "protocol", "path": "protocol", "required": true },
     { "id": "schemas", "path": "schemas", "required": true },
     { "id": "skills", "path": "skills", "required": true },
-    { "id": "docs", "path": "docs", "required": true },
-    { "id": "adapters", "path": "adapters", "required": false }
+    { "id": "docs", "path": "docs", "required": true }
   ],
   "files": [
-    {
-      "path": "adapters/README.md",
-      "size": 420,
-      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    },
     {
       "path": "core/index.mjs",
       "size": 24576,
