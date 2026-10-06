@@ -1,3 +1,4 @@
+import type { ParsedArtifactDocument } from '../artifacts/index.js';
 import { stableHash } from '../planning/hash.js';
 import { ReviewCoreError } from './errors.js';
 import type {
@@ -153,4 +154,45 @@ export function normalizeFindings(value: unknown): ReviewFinding[] {
 
 export function machineFindingPayload(findings: readonly ReviewFinding[]): Readonly<Record<string, unknown>> {
   return { schemaVersion: FINDING_CONTRACT_VERSION, findings };
+}
+
+
+export function parseMachineFindings(document: ParsedArtifactDocument): ReviewFinding[] {
+  const section = document.sections['Machine-readable findings'];
+  if (typeof section !== 'string' || !section.trim()) {
+    throw new ReviewCoreError('REVIEW_CONTRACT_INVALID', "missing or empty section '## Machine-readable findings'");
+  }
+  const text = section.trim();
+  const fence = String.fromCharCode(96).repeat(3);
+  const start = fence + 'json\n';
+  const end = '\n' + fence;
+  if (!text.startsWith(start) || !text.endsWith(end)) {
+    throw new ReviewCoreError(
+      'REVIEW_CONTRACT_INVALID',
+      'Machine-readable findings must contain exactly one JSON fenced object',
+    );
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text.slice(start.length, -end.length));
+  } catch (error) {
+    throw new ReviewCoreError(
+      'REVIEW_CONTRACT_INVALID',
+      'invalid machine findings JSON: ' + (error as Error).message,
+    );
+  }
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    throw new ReviewCoreError('REVIEW_CONTRACT_INVALID', 'machine findings payload must be an object');
+  }
+  const object = payload as Record<string, unknown>;
+  if (Object.keys(object).sort().join(',') !== 'findings,schemaVersion') {
+    throw new ReviewCoreError('REVIEW_CONTRACT_INVALID', 'machine findings payload keys must be schemaVersion, findings');
+  }
+  if (object.schemaVersion !== FINDING_CONTRACT_VERSION) {
+    throw new ReviewCoreError(
+      'REVIEW_CONTRACT_INVALID',
+      'machine findings schemaVersion must be ' + FINDING_CONTRACT_VERSION,
+    );
+  }
+  return normalizeFindings(object.findings);
 }
