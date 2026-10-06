@@ -542,6 +542,14 @@ export async function startExecution(
             finishRoot(state, execution, true, blocker);
             return { execution, blocker };
           }
+          const progressBlocker = await observeSemanticResume(projectRoot, execution);
+          if (progressBlocker) {
+            execution.current.status = 'blocked';
+            execution.current.result = 'BLOCKED';
+            execution.current.completedAt = nowIso();
+            finishRoot(state, execution, true, progressBlocker);
+            return { execution, blocker: progressBlocker };
+          }
           execution.current.attempt += 1;
           execution.current.startedAt = nowIso();
           execution.updatedAt = nowIso();
@@ -564,7 +572,19 @@ export async function startExecution(
       const firstCommand =
         normalized.mode === 'orchestration' ? normalized.rootCommand : normalized.sequence[0];
       const executionId = `exec-${randomUUID().replaceAll('-', '')}`;
-      const context = await commandContext(projectRoot, firstCommand);
+      let baseline = await implementationBaseline(projectRoot, executionId, firstCommand);
+      const firstParsed = parseCanonicalCommand(firstCommand);
+      if (
+        !baseline &&
+        firstParsed.valid &&
+        firstParsed.domain === 'STEP' &&
+        firstParsed.operation === 'REVIEW' &&
+        firstParsed.target
+      ) {
+        baseline = state.stepRecovery[firstParsed.target];
+      }
+      if (baseline) state.stepRecovery[baseline.stepId] = baseline;
+      const contextResult = await commandContext(projectRoot, firstCommand, baseline);
       const timestamp = nowIso();
       const execution: ExecutionRecord = {
         executionId,
@@ -582,7 +602,7 @@ export async function startExecution(
           attempt: 1,
           startedAt: timestamp,
           completedAt: null,
-          context,
+          context: contextResult.context,
         },
         notExecuted: [],
         fixReviewCycles: 0,
@@ -628,6 +648,14 @@ export async function beginCommand(
           finishRoot(state, execution, true, blocker);
           return { execution, blocker };
         }
+        const progressBlocker = await observeSemanticResume(projectRoot, execution);
+        if (progressBlocker) {
+          execution.current.status = 'blocked';
+          execution.current.result = 'BLOCKED';
+          execution.current.completedAt = nowIso();
+          finishRoot(state, execution, true, progressBlocker);
+          return { execution, blocker: progressBlocker };
+        }
         execution.current.attempt += 1;
         execution.current.startedAt = nowIso();
         execution.updatedAt = nowIso();
@@ -643,10 +671,30 @@ export async function beginCommand(
         );
       }
 
-      const baseline = await implementationBaseline(projectRoot, execution.executionId, parsed.normalized);
+      let baseline = await implementationBaseline(projectRoot, execution.executionId, parsed.normalized);
+      if (
+        !baseline &&
+        parsed.domain === 'STEP' &&
+        parsed.operation === 'REVIEW' &&
+        parsed.target
+      ) {
+        baseline = state.stepRecovery[parsed.target];
+      }
       if (baseline) state.stepRecovery[baseline.stepId] = baseline;
-      const context = await commandContext(projectRoot, parsed.normalized, baseline);
-      execution.current = newCurrent(parsed.normalized, context);
+      const contextResult = await commandContext(
+        projectRoot,
+        parsed.normalized,
+        baseline,
+        execution.current.context.progress,
+      );
+      if (contextResult.progressBlocker) {
+        execution.current.status = 'blocked';
+        execution.current.result = 'BLOCKED';
+        execution.current.completedAt = nowIso();
+        finishRoot(state, execution, true, contextResult.progressBlocker);
+        return { execution, blocker: contextResult.progressBlocker };
+      }
+      execution.current = newCurrent(parsed.normalized, contextResult.context);
       if (execution.mode === 'chain') execution.currentIndex = (execution.currentIndex ?? 0) + 1;
       execution.updatedAt = nowIso();
       return { execution };
