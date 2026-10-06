@@ -20,15 +20,17 @@ Harness Core является частью устанавливаемого пр
 
 ### 2.2 Детерминированная механика принадлежит Core
 
-Parsing, validation, state transitions, Git safety, release resolution, migration mechanics, locking и другие вычислимые операции должны находиться в детерминированном Core, а не в prompts или runtime-specific adapters.
+Parsing, validation, state transitions, Git safety, release resolution, migration mechanics, locking и другие вычислимые операции должны находиться в детерминированном Core, а не в prompts или внешнем AI runtime.
 
 Связанные требования: `CLI-REQ-003`, `CLI-REQ-140`–`CLI-REQ-148`.
 
-### 2.3 Runtime-адаптеры не владеют семантикой Harness
+### 2.3 AI runtime — внешний caller, а не управляемый процесс
 
-Codex, Claude Code и будущие runtimes являются внешними адаптерами. Они могут отличаться способом запуска, identity/auth API, permissions и resume semantics, но не должны иметь собственную независимую реализацию protocol/state-machine rules.
+Codex, Claude Code и другие AI runtimes запускаются независимо от Harness CLI. При необходимости они сами вызывают deterministic Harness interfaces и получают structured result/semantic handoff.
 
-Связанные требования: `CLI-REQ-004`, `CLI-REQ-160`–`CLI-REQ-166`.
+Harness CLI не запускает runtime, не выбирает его, не управляет его auth/model/effort и не supervises его process lifecycle.
+
+Связанные требования: `CLI-REQ-004`, `CLI-REQ-008`, `CLI-REQ-167`–`CLI-REQ-170`.
 
 ### 2.4 CLI — слой представления и управления, а не отдельный Core
 
@@ -58,13 +60,13 @@ CLI не должен содержать вторую реализацию valid
                  │ state   │ safety   │ migrate │
                  └──────┬─────────┬────────┬────┘
                         │         │        │
-              ┌─────────▼───┐ ┌──▼──────┐ ┌▼────────────────┐
-              │ Git / FS    │ │ Runtime │ │ Integration API │
-              │ adapters    │ │ adapters│ │ adapters        │
-              └─────────────┘ └─────────┘ └─────────────────┘
-                        │
-        ┌───────────────┼───────────────────────┐
-        ▼               ▼                       ▼
+              ┌─────────▼────────┐     ┌────────────────────┐
+              │ Git / FS / store │     │ Integration clients│
+              │ infrastructure   │     │ / external callers │
+              └─────────┬────────┘     └─────────┬──────────┘
+                        │                        │
+        ┌───────────────┼────────────────────────┘
+        ▼               ▼
  project repository   .git/ai-harness/   global Harness storage
  tracked state        clone-local state  releases/config/cache
 ```
@@ -313,32 +315,24 @@ Harness Core содержит canonical protocol model в `src/core/protocol/`.
 
 Модуль runtime-neutral и не зависит от Commander.
 
-Execution-state mutations, semantic runtime invocation, Git side effects и окончательный dispatcher остаются за следующими Stage 4 слоями. В частности, issue #32 переносит parser/CTS authority, но не реализует `ProtocolEngine` execution semantics целиком.
+Execution-state mutations, semantic handoff coordination, Git side effects и окончательный dispatcher остаются за следующими Stage 4 слоями. В частности, issue #32 переносит parser/CTS authority, но не реализует `ProtocolEngine` execution semantics целиком.
 
 После этого cutover template `.harness/command-transitions.json`, Python parser и generated reasoning projection являются compatibility reference v0.10.4, а не активным source of truth.
 
 Связанные требования: `CLI-REQ-140`–`CLI-REQ-144`, `CLI-REQ-211`, `CLI-REQ-240`, `CLI-REQ-241`.
 
-### 4.8 Runtime Adapter Boundary
+### 4.8 External caller boundary
 
-Runtime adapter — boundary между Harness Core и конкретным AI runtime.
+Harness Core может вернуть semantic handoff внешнему caller, но не выполняет model inference и не управляет процессом AI runtime.
 
-Концептуальный контракт:
+Внешний caller:
 
-```text
-RuntimeAdapter
-├── capabilities()
-├── identity()
-├── execute(context)
-├── resume(context)
-└── cancel(context)
-```
+- передаёт canonical command;
+- получает deterministic result либо semantic handoff;
+- выполняет semantic работу самостоятельно;
+- возвращает proposal/result через runtime-neutral contract.
 
-Точные TypeScript signatures фиксируются отдельным design/ADR при реализации.
-
-Core передаёт адаптеру явный project context и semantic task, но adapter не определяет protocol validity.
-
-Связанные требования: `CLI-REQ-160`–`CLI-REQ-166`.
+Canonical state mutations, transition commits, deterministic writers и Git safety остаются Core-owned.
 
 ### 4.9 Integration API Boundary
 
@@ -390,7 +384,7 @@ Harness Core
       ↓
 Ports / contracts
       ↑
-Infrastructure adapters (Git, filesystem, runtime, transport)
+Infrastructure adapters (Git, filesystem, storage, transport)
 ```
 
 Правила:
@@ -398,8 +392,8 @@ Infrastructure adapters (Git, filesystem, runtime, transport)
 1. Core не импортирует Commander.
 2. Core не зависит от конкретного runtime SDK.
 3. Project/release/migration/protocol domain logic не зависит от формата terminal output.
-4. Runtime adapters зависят от Core contract, а не наоборот от конкретной реализации adapter.
-5. Integration transports зависят от Core public API.
+4. External callers и integration transports зависят от Core public contract.
+5. AI runtime SDK не импортируется в Core/CLI control plane.
 6. Infrastructure details не должны определять product semantics.
 
 ## 7. Public Core contracts
@@ -540,11 +534,11 @@ Protocol layer разделён на уже реализованный determini
 
 Semantic agent work находится за пределами deterministic parsing/CTS validation.
 
-### 7.8 RuntimeAdapter
+### 7.8 ExternalCallerBoundary
 
-Runtime-specific implementation должна быть заменяемой и capability-driven.
+Machine-readable boundary для уже запущенного внешнего caller.
 
-Adapter получает уже валидированный context и не принимает архитектурные решения за ProtocolEngine.
+Он передаёт canonical input и factual semantic proposal/result, но не получает authority над Core state.
 
 ### 7.9 IntegrationFacade
 
@@ -701,19 +695,28 @@ Lock не является source of truth recovery. После crash durable `m
 
 Подробная ownership/migration policy относится к issue #7 и `docs/MIGRATION.md`.
 
-## 12. Runtime boundary
+## 12. External AI runtime boundary
 
-CLI/Core не предполагает, что runtime обязан запускаться дочерним процессом CLI.
+Harness CLI/Core **никогда не запускает и не supervises AI runtime**.
 
-Допустимы разные интеграционные механизмы, если сохраняются:
+Внешний Codex/Claude/другой agent запускается независимо и сам обращается к Harness deterministic interfaces.
 
-- явный project context;
-- capability discovery;
-- native permissions/approvals;
-- отсутствие silent runtime fallback;
-- единая protocol semantics в Core.
+Core может:
 
-Конкретная схема запуска Codex/Claude остаётся открытым design decision.
+- валидировать canonical command;
+- зарегистрировать/возобновить protocol execution;
+- вернуть semantic handoff;
+- принять factual proposal/result;
+- применить deterministic gates и continuation.
+
+Core/CLI не отвечает за:
+
+- runtime process spawn;
+- runtime selection/fallback;
+- auth/account state AI runtime;
+- model/effort;
+- runtime cancellation/process lifecycle;
+- proxy TTY/permission UX.
 
 ## 13. Взаимодействие с template repository
 
@@ -762,7 +765,7 @@ src/core/host/
 - наличии обязательного GUI;
 - конкретном transport Local Integration API;
 - конкретной технологии standalone packaging;
-- конкретном способе process integration с Codex/Claude;
+- transport/UX конкретного внешнего caller поверх machine-readable Harness boundary;
 - финальном полном CLI syntax Protocol Engine;
 - точном physical package split внутри repository.
 
@@ -780,7 +783,7 @@ src/core/host/
 | Releases/update | `CLI-REQ-100`–`CLI-REQ-109` |
 | Migration | `CLI-REQ-120`–`CLI-REQ-128` |
 | Protocol/execution | `CLI-REQ-140`–`CLI-REQ-148` |
-| Runtime adapters | `CLI-REQ-160`–`CLI-REQ-166` |
+| External caller boundary | `CLI-REQ-160`–`CLI-REQ-170` |
 | Git safety | `CLI-REQ-180`–`CLI-REQ-183` |
 | Integration API | `CLI-REQ-200`–`CLI-REQ-203` |
 | CLI UX | `CLI-REQ-210`–`CLI-REQ-215` |
