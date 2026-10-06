@@ -6,6 +6,7 @@ import { resolvePinnedRelease } from '../core/releases/resolver.js';
 import { ReleaseStore } from '../core/releases/store.js';
 import { projectStatus, resolveStepNext, writeProjections } from '../core/project/index.js';
 import { createPlanningProjectProviders } from '../core/planning/index.js';
+import { unresolvedExecutionFacts } from '../core/execution/index.js';
 
 export interface StatusCommandOptions {
   readonly json?: boolean;
@@ -31,12 +32,16 @@ export async function statusCommand(
     let status: Readonly<Record<string, unknown>>;
     try {
       const planningProviders = createPlanningProjectProviders(root);
-      changedProjections = await writeProjections(root, planningProviders);
-      const facts = await projectStatus(root, planningProviders);
+      const readModelProviders = {
+        ...planningProviders,
+        unresolvedExecutions: () => unresolvedExecutionFacts(root),
+      };
+      changedProjections = await writeProjections(root, readModelProviders);
+      const facts = await projectStatus(root, readModelProviders);
       status = {
         ...facts,
         changedProjections,
-        nextWork: await resolveStepNext(root, planningProviders),
+        nextWork: await resolveStepNext(root, readModelProviders),
       };
     } catch (error) {
       status = {
