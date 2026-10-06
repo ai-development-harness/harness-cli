@@ -92,7 +92,11 @@ export class ProtocolEngine {
     if (!validation.valid) return structuralBlocker(rawCommand, validation.code, validation.message);
 
     const record = await this.#execution.startExecution(this.#projectRoot, rawCommand);
-    return this.#drive(record.rootCommand, record);
+    // STEP RUN is a deterministic orchestration root: the execution service resolves
+    // its first child command (PLAN) before any semantic handoff is considered.
+    return record.mode === 'orchestration'
+      ? this.#drive(record.rootCommand)
+      : this.#drive(record.rootCommand, record);
   }
 
   async resume(rootCommand: string): Promise<ProtocolEngineResult> {
@@ -274,7 +278,7 @@ export class ProtocolEngine {
           ...id,
           requiredSkill: spec.dispatch.skill,
           contextPhase: spec.dispatch.contextPhase ?? null,
-          reasoningMode: spec.reasoning.mode,
+          reasoningMode: spec.reasoning.mode === 'conditional' ? 'conditional' : 'required',
           context: record.current.context,
         };
       }
