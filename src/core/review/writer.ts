@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-import { createDurableArtifact } from '../artifacts/index.js';
 import { readConfig } from '../config.js';
 import {
   completeCurrent,
@@ -17,7 +15,7 @@ import {
   reportForExecution,
   validateReviewReport,
 } from './history.js';
-import { renderDocument } from './document-write.js';
+import { createTimestampedReport, renderDocument } from './document-write.js';
 import { verificationFreshness } from './verification.js';
 import type {
   ReviewFinding,
@@ -143,14 +141,6 @@ function renderHumanFindings(findings: readonly ReviewFinding[]): string {
       '- Fingerprint: ' + finding.fingerprint,
     ].join('\n');
   }).join('\n\n');
-}
-
-function reportFilename(now: Date): string {
-  const stamp = now.toISOString()
-    .replace(/[-:]/g, '')
-    .replace('.','')
-    .replace('Z','Z');
-  return 'REVIEW-' + stamp + '-' + randomUUID().slice(0, 8) + '.md';
 }
 
 async function reviewDirectory(projectRoot: string, stepId: string): Promise<string> {
@@ -347,8 +337,6 @@ export async function commitStepReview(
 
   const now = options.now ?? new Date();
   const directory = await reviewDirectory(projectRoot, options.stepId);
-  const filePath = path.join(directory, reportFilename(now));
-  const relative = path.relative(projectRoot, filePath).split(path.sep).join('/');
   const gate = await requiredReviewers(projectRoot, options.stepId, baseline);
   const specialized = {
     gate_basis: currentExpectation.gateBasis,
@@ -361,63 +349,72 @@ export async function commitStepReview(
     ...proposal.specializedReviews,
   };
 
-  const frontmatter: Record<string, unknown> = {
-    schema: 1,
-    kind: 'step_review',
-    finding_contract: 2,
-    step_id: options.stepId,
-    execution_id: options.executionId,
-    verdict: proposal.verdict,
-    reviewer_role: 'reviewer',
-    created_at: now.toISOString(),
-    reviewed_revision: currentExpectation.repositoryRevision,
-    contract_basis: currentExpectation.contextBasis,
-    verification_basis: currentExpectation.verificationBasis,
-    verification_status: verification.status,
-    specialized_reviews: specialized,
-  };
-  if (convergence) {
-    frontmatter.completion_contract = 1;
-    frontmatter.completion_result = String(convergence.completionResult).toLowerCase();
-  }
+  const report = await createTimestampedReport(
+    projectRoot,
+    directory,
+    'REVIEW-',
+    (createdAt) => {
+      const frontmatter: Record<string, unknown> = {
+        schema: 1,
+        kind: 'step_review',
+        finding_contract: 2,
+        step_id: options.stepId,
+        execution_id: options.executionId,
+        verdict: proposal.verdict,
+        reviewer_role: 'reviewer',
+        created_at: createdAt,
+        reviewed_revision: currentExpectation.repositoryRevision,
+        contract_basis: currentExpectation.contextBasis,
+        verification_basis: currentExpectation.verificationBasis,
+        verification_status: verification.status,
+        specialized_reviews: specialized,
+      };
+      if (convergence) {
+        frontmatter.completion_contract = 1;
+        frontmatter.completion_result = String(convergence.completionResult).toLowerCase();
+      }
 
-  const fence = String.fromCharCode(96).repeat(3);
-  const completionSection = convergence
-    ? '\n## Completion convergence\n\n' + fence + 'json\n' +
-      JSON.stringify(convergence, null, 2) + '\n' + fence + '\n'
-    : '';
-  const body = [
-    '# STEP REVIEW ' + options.stepId + ' — ' + now.toISOString().replace('T', ' ').slice(0, 16),
-    '',
-    '## Scope checked',
-    '',
-    '- Task contract',
-    '- REQ/ADR/OQ/architecture refs',
-    '- Implementation plan',
-    '- Diff/current code',
-    '- Tests/verification',
-    '',
-    '## Findings',
-    '',
-    renderHumanFindings(proposal.findings),
-    '',
-    '## Machine-readable findings',
-    '',
-    fence + 'json',
-    JSON.stringify(machineFindingPayload(proposal.findings), null, 2),
-    fence,
-    '',
-    '## Verification observations',
-    '',
-    proposal.verificationObservations,
-    '',
-    '## Verdict rationale',
-    '',
-    proposal.rationale,
-    completionSection,
-  ].join('\n');
-
-  await createDurableArtifact(projectRoot, filePath, renderDocument(frontmatter, body));
+      const fence = String.fromCharCode(96).repeat(3);
+      const completionSection = convergence
+        ? '\n## Completion convergence\n\n' + fence + 'json\n' +
+          JSON.stringify(convergence, null, 2) + '\n' + fence + '\n'
+        : '';
+      const body = [
+        '# STEP REVIEW ' + options.stepId + ' — ' + createdAt.replace('T', ' ').slice(0, 16),
+        '',
+        '## Scope checked',
+        '',
+        '- Task contract',
+        '- REQ/ADR/OQ/architecture refs',
+        '- Implementation plan',
+        '- Diff/current code',
+        '- Tests/verification',
+        '',
+        '## Findings',
+        '',
+        renderHumanFindings(proposal.findings),
+        '',
+        '## Machine-readable findings',
+        '',
+        fence + 'json',
+        JSON.stringify(machineFindingPayload(proposal.findings), null, 2),
+        fence,
+        '',
+        '## Verification observations',
+        '',
+        proposal.verificationObservations,
+        '',
+        '## Verdict rationale',
+        '',
+        proposal.rationale,
+        completionSection,
+      ].join('\n');
+      return renderDocument(frontmatter, body);
+    },
+    now,
+  );
+  const filePath = report.path;
+  const relative = path.relative(projectRoot, filePath).split(path.sep).join('/');
   const errors = await validateReviewReport(projectRoot, filePath, {
     expectedStepId: options.stepId,
     requireCurrentRevision: true,
