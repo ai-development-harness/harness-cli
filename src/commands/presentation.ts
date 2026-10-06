@@ -62,9 +62,16 @@ export function structuredError(
       ? candidate.details
       : {};
 
+  const message =
+    error instanceof Error
+      ? error.message
+      : candidate && typeof candidate.message === 'string'
+        ? candidate.message
+        : String(error);
+
   return {
     code,
-    message: error instanceof Error ? error.message : String(error),
+    message,
     details,
   };
 }
