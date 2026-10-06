@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createDurableArtifact } from '../artifacts/index.js';
 import { readConfig } from '../config.js';
@@ -11,6 +12,7 @@ import { normalizeFindings, machineFindingPayload } from './findings.js';
 import { evaluateCompletion, finalizeStepCompletion } from './completion.js';
 import { ReviewCoreError } from './errors.js';
 import { captureReviewExpectation } from './expectation.js';
+import { requiredReviewers } from './gates.js';
 import {
   reportForExecution,
   validateReviewReport,
@@ -347,16 +349,15 @@ export async function commitStepReview(
   const directory = await reviewDirectory(projectRoot, options.stepId);
   const filePath = path.join(directory, reportFilename(now));
   const relative = path.relative(projectRoot, filePath).split(path.sep).join('/');
+  const gate = await requiredReviewers(projectRoot, options.stepId, baseline);
   const specialized = {
     gate_basis: currentExpectation.gateBasis,
     required: currentExpectation.requiredReviewers,
     implementation_baseline: baseline,
-    surface_mode: (await import('./gates.js')).requiredReviewers
-      ? (await (await import('./gates.js')).requiredReviewers(projectRoot, options.stepId, baseline)).surfaceMode
-      : 'clean-tree-fallback',
-    changed_paths_hash: (await (await import('./gates.js')).requiredReviewers(projectRoot, options.stepId, baseline)).changedPathsHash,
-    baseline_status: (await (await import('./gates.js')).requiredReviewers(projectRoot, options.stepId, baseline)).baselineStatus,
-    baseline_reason: (await (await import('./gates.js')).requiredReviewers(projectRoot, options.stepId, baseline)).baselineReason,
+    surface_mode: gate.surfaceMode,
+    changed_paths_hash: gate.changedPathsHash,
+    baseline_status: gate.baselineStatus,
+    baseline_reason: gate.baselineReason,
     ...proposal.specializedReviews,
   };
 
@@ -422,6 +423,10 @@ export async function commitStepReview(
     requireCurrentRevision: true,
   });
   if (errors.length > 0) {
+    // This file was created by the current Core transaction and has not been
+    // accepted as durable history yet. Remove the invalid candidate rather than
+    // leaving an immutable-looking artifact that future recovery cannot trust.
+    await rm(filePath, { force: true });
     throw new ReviewCoreError(
       'REVIEW_CONTRACT_INVALID',
       'generated STEP review failed canonical validation: ' + errors.join('; '),
